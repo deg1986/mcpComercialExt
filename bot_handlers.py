@@ -208,7 +208,7 @@ def handle_conversation_state(chat_id, user_id, text):
 
 def handle_document_number_input(chat_id, user_id, doc_number):
     """Manejar entrada del número de documento"""
-    logger.info(f"📱 Document number input from chat {chat_id}")
+    logger.info(f"📱 Document number input: {doc_number} from chat {chat_id}")
     
     state = user_states[user_id]
     doc_type = state.get('doc_type')
@@ -218,15 +218,20 @@ def handle_document_number_input(chat_id, user_id, doc_number):
     
     try:
         # Validar documento
+        logger.info(f"🔍 Validating document: {doc_type} {doc_number}")
         validation = validate_document_number(doc_type, doc_number)
         if not validation["valid"]:
+            logger.warning(f"❌ Validation failed: {validation['error']}")
             send_telegram_message(chat_id, f"❌ **Formato incorrecto:**\n{validation['error']}\n\n💡 Intenta nuevamente con solo números.", parse_mode='Markdown')
             return
         
         # Buscar cliente
+        logger.info(f"🔍 Starting client search for {doc_type}: {doc_number}")
         search_result = search_client_by_document(doc_type, doc_number)
+        logger.info(f"🔍 Search result: success={search_result.get('success')}, found={search_result.get('found')}")
         
         if not search_result["success"]:
+            logger.error(f"❌ Search failed: {search_result.get('error')}")
             send_telegram_message(chat_id, f"❌ **Error al buscar:**\nNo pude consultar los datos en este momento.\n\n🔄 Por favor intenta en unos minutos.", parse_mode='Markdown')
             return
         
@@ -234,16 +239,21 @@ def handle_document_number_input(chat_id, user_id, doc_number):
             # Cliente encontrado
             matches = search_result["matches"]
             total_matches = search_result["total_matches"]
+            logger.info(f"✅ Found {total_matches} matches")
             
             if total_matches == 1:
                 # Un solo cliente encontrado
                 client_match = matches[0]
-                client_info = format_client_info(
-                    client_match["client_data"], 
-                    client_match["matched_field"]
-                )
+                logger.info(f"🔍 Formatting single client info...")
                 
-                response = f"""✅ **¡CLIENTE ENCONTRADO!** 🎯
+                try:
+                    client_info = format_client_info(
+                        client_match["client_data"], 
+                        client_match["matched_field"]
+                    )
+                    logger.info(f"✅ Client info formatted: {len(client_info)} chars")
+                    
+                    response = f"""✅ **¡CLIENTE ENCONTRADO!** 🎯
 
 {client_info}
 
@@ -252,25 +262,38 @@ def handle_document_number_input(chat_id, user_id, doc_number):
 • Número: {doc_number}
 
 💡 **Nueva búsqueda:** Escribe `cliente`"""
+                    
+                    logger.info(f"📤 Sending response: {len(response)} characters")
+                    success = send_telegram_message(chat_id, response, parse_mode='Markdown')
+                    logger.info(f"📤 Message sent: {success}")
+                    
+                except Exception as format_error:
+                    logger.error(f"❌ Format error: {format_error}")
+                    # Respuesta de fallback más simple
+                    simple_response = f"""✅ **¡CLIENTE ENCONTRADO!** 🎯
+
+🔍 **Documento:** {doc_type} {doc_number}
+ℹ️ **Estado:** Cliente existe en la base de datos
+
+💡 **Nueva búsqueda:** Escribe `cliente`"""
+                    send_telegram_message(chat_id, simple_response, parse_mode='Markdown')
                 
             else:
                 # Múltiples clientes encontrados
-                response = f"✅ **¡ENCONTRÉ VARIOS CLIENTES!** ({total_matches}) 🔍\n\n"
+                logger.info(f"🔍 Formatting multiple clients: {total_matches}")
+                response = f"""✅ **¡ENCONTRÉ VARIOS CLIENTES!** ({total_matches}) 🔍
+
+📋 **Documento buscado:** {doc_type} {doc_number}
+ℹ️ **Resultado:** Se encontraron {total_matches} clientes con este documento
+
+💡 **Nueva búsqueda:** Escribe `cliente`"""
                 
-                for i, match in enumerate(matches[:MAX_RESULTS_SHOW], 1):
-                    client_info = format_client_info(match["client_data"], match["matched_field"])
-                    response += f"**Cliente #{i}:**\n{client_info}\n\n"
-                
-                if total_matches > MAX_RESULTS_SHOW:
-                    response += f"📌 **Mostrando {MAX_RESULTS_SHOW} de {total_matches} clientes encontrados**\n\n"
-                
-                response += f"💡 **Nueva búsqueda:** Escribe `cliente`"
-            
-            send_telegram_message(chat_id, response, parse_mode='Markdown')
+                send_telegram_message(chat_id, response, parse_mode='Markdown')
             
         else:
             # Cliente no encontrado
             total_searched = search_result.get("total_clients_searched", 0)
+            logger.info(f"❌ No matches found in {total_searched} clients")
             
             response = f"""❌ **NO ENCONTRÉ ESTE CLIENTE** 🔍
 
@@ -293,6 +316,7 @@ def handle_document_number_input(chat_id, user_id, doc_number):
         
         # Limpiar estado
         del user_states[user_id]
+        logger.info(f"✅ Search process completed, user state cleaned")
         
     except Exception as e:
         logger.error(f"❌ Document search error: {e}")
