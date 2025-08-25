@@ -14,6 +14,13 @@ REDASH_BASE_URL = os.getenv('REDASH_BASE_URL', 'https://redash-mcp.farmuhub.co')
 REDASH_API_KEY = os.getenv('REDASH_API_KEY', 'MJAgj9yCdpVsWFdinPPfqBkQuvTBKmhCOD9JEmNZ')
 REDASH_QUERY_ID = os.getenv('REDASH_QUERY_ID', '100')
 
+# ===== NUEVA CONFIGURACIÓN PARA CLIENTES NO DISPONIBLES =====
+REDASH_UNAVAILABLE_API_KEY = os.getenv('REDASH_UNAVAILABLE_API_KEY', 'nQmXGYBuKdck7VBTrqvOZ45ypmp5idTlZpVEumbz')
+REDASH_UNAVAILABLE_QUERY_ID = os.getenv('REDASH_UNAVAILABLE_QUERY_ID', '133')
+
+# ===== URL DE PRE-REGISTRO =====
+PREREGISTER_URL = os.getenv('PREREGISTER_URL', 'https://saludia.me/pre-register')
+
 # ===== VALIDACIÓN DE VARIABLES CRÍTICAS =====
 if not TELEGRAM_TOKEN or TELEGRAM_TOKEN == 'your_token_here':
     print("⚠️ WARNING: TELEGRAM_TOKEN usando valor por defecto")
@@ -33,6 +40,13 @@ clients_cache = {
     "data": None,
     "timestamp": 0,
     "ttl": 3600  # 1 hora para datos estables de clientes
+}
+
+# ===== CONFIGURACIÓN CACHE CLIENTES NO DISPONIBLES =====
+unavailable_clients_cache = {
+    "data": None,
+    "timestamp": 0,
+    "ttl": 1800  # 30 minutos para datos más dinámicos
 }
 
 # ===== CONFIGURACIÓN TIMEOUTS =====
