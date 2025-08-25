@@ -74,25 +74,30 @@ def get_clients_from_redash():
 def search_client_by_document(doc_type, doc_number):
     """Buscar cliente por tipo y número de documento"""
     try:
+        logger.info(f"🔍 Starting search for {doc_type}: {doc_number}")
+        
         # Obtener data de clientes
         data_result = get_clients_from_redash()
         
         if not data_result.get("success"):
+            logger.error(f"❌ Failed to get clients data: {data_result.get('error')}")
             return {"success": False, "error": data_result.get("error"), "found": False}
         
         data = data_result.get("data", {})
         clients = data.get("clients", [])
         columns = data.get("columns", [])
         
+        logger.info(f"📊 Got {len(clients)} clients and {len(columns)} columns")
+        
         if not clients:
+            logger.warning("⚠️ No clients data available")
             return {"success": True, "found": False, "message": "No hay datos de clientes disponibles"}
         
         # Identificar columnas relevantes para búsqueda de documentos
-        # Buscar columnas que puedan contener información de documento
         doc_columns = []
         potential_doc_fields = [
             'nit', 'cedula', 'documento', 'doc_number', 'identification', 
-            'tax_id', 'client_id', 'customer_id', 'id_number'
+            'tax_id', 'client_id', 'customer_id', 'id_number', 'cc'
         ]
         
         for col in columns:
@@ -100,20 +105,21 @@ def search_client_by_document(doc_type, doc_number):
             if any(field in col_name for field in potential_doc_fields):
                 doc_columns.append(col.get('name'))
         
-        logger.info(f"🔍 Searching in potential document columns: {doc_columns}")
+        logger.info(f"🔍 Found potential document columns: {doc_columns}")
         
-        # Si no se encuentran columnas específicas, buscar en todas las columnas de texto
+        # Si no se encuentran columnas específicas, buscar en todas las columnas
         if not doc_columns:
-            doc_columns = [col.get('name') for col in columns if col.get('type') in ['string', 'text']]
-            logger.info(f"🔍 Fallback: searching in all text columns: {doc_columns}")
+            doc_columns = [col.get('name') for col in columns]
+            logger.info(f"🔍 Using all columns as fallback: {len(doc_columns)} columns")
         
         # Limpiar número de documento para comparación
         clean_doc_number = str(doc_number).strip().replace('-', '').replace('.', '').replace(' ', '')
+        logger.info(f"🔍 Cleaned document number: {clean_doc_number}")
         
         matching_clients = []
         
         # Buscar en todos los registros
-        for client in clients:
+        for i, client in enumerate(clients):
             if not isinstance(client, dict):
                 continue
                 
@@ -124,6 +130,7 @@ def search_client_by_document(doc_type, doc_number):
                     
                     # Comparación exacta
                     if clean_doc_number == client_doc:
+                        logger.info(f"✅ Match found in client {i+1}, column {col_name}: {client_doc}")
                         matching_clients.append({
                             "client_data": client,
                             "matched_field": col_name,
@@ -131,6 +138,39 @@ def search_client_by_document(doc_type, doc_number):
                             "search_type": f"{doc_type}_{clean_doc_number}"
                         })
                         break
+        
+        logger.info(f"🔍 Search completed: {len(matching_clients)} matches found")
+        
+        if matching_clients:
+            logger.info(f"✅ Found {len(matching_clients)} matching clients for {doc_type}: {doc_number}")
+            return {
+                "success": True,
+                "found": True,
+                "matches": matching_clients,
+                "total_matches": len(matching_clients),
+                "search_criteria": {
+                    "doc_type": doc_type,
+                    "doc_number": doc_number,
+                    "cleaned_number": clean_doc_number
+                }
+            }
+        else:
+            logger.info(f"❌ No matches found for {doc_type}: {doc_number}")
+            return {
+                "success": True,
+                "found": False,
+                "message": f"No se encontró cliente con {doc_type}: {doc_number}",
+                "search_criteria": {
+                    "doc_type": doc_type,
+                    "doc_number": doc_number,
+                    "cleaned_number": clean_doc_number
+                },
+                "total_clients_searched": len(clients)
+            }
+            
+    except Exception as e:
+        logger.error(f"❌ Error searching client: {e}")
+        return {"success": False, "error": str(e), "found": False}
         
         if matching_clients:
             logger.info(f"✅ Found {len(matching_clients)} matching clients for {doc_type}: {doc_number}")
@@ -231,43 +271,65 @@ def validate_document_number(doc_type, doc_number):
         return {"valid": False, "error": f"Error validando documento: {str(e)}"}
 
 def format_client_info(client_data, matched_field=None):
-    """Formatear información del cliente para mostrar"""
+    """Formatear información del cliente para mostrar - SIMPLIFICADO"""
     try:
         if not isinstance(client_data, dict):
-            return "Formato de cliente inválido"
+            return "❌ Formato de cliente inválido"
         
-        # Campos comunes que suelen existir
-        common_fields = [
-            'nombre', 'name', 'client_name', 'customer_name',
-            'razon_social', 'business_name', 'company_name',
-            'email', 'correo', 'telefono', 'phone', 'celular',
-            'ciudad', 'city', 'municipio', 'departamento', 'state',
-            'direccion', 'address', 'barrio', 'neighborhood'
-        ]
+        logger.info(f"🔍 Formatting client data with {len(client_data)} fields")
         
         formatted_info = []
         
-        # Información principal
-        if matched_field:
-            formatted_info.append(f"🔍 **Encontrado por:** {matched_field} = {client_data.get(matched_field)}")
+        # Información de coincidencia
+        if matched_field and matched_field in client_data:
+            formatted_info.append(f"🔍 **Documento:** {client_data[matched_field]}")
         
-        # Buscar y mostrar campos relevantes
-        for field in common_fields:
-            for key, value in client_data.items():
-                if field.lower() in key.lower() and value:
-                    formatted_info.append(f"• **{key}:** {value}")
-                    break
+        # Buscar campos comunes paso a paso
+        # Nombre/Razón Social
+        name_found = False
+        for name_field in ['nombre', 'name', 'client_name', 'razon_social', 'business_name', 'company_name']:
+            if name_field in client_data and client_data[name_field]:
+                formatted_info.append(f"🏢 **Nombre:** {client_data[name_field]}")
+                name_found = True
+                break
         
-        # Si no se encontraron campos comunes, mostrar algunos campos disponibles
-        if len(formatted_info) <= 1:  # Solo el matched_field
+        # Email
+        email_found = False
+        for email_field in ['email', 'correo', 'mail']:
+            if email_field in client_data and client_data[email_field]:
+                formatted_info.append(f"📧 **Email:** {client_data[email_field]}")
+                email_found = True
+                break
+        
+        # Teléfono
+        phone_found = False
+        for phone_field in ['telefono', 'phone', 'celular', 'movil']:
+            if phone_field in client_data and client_data[phone_field]:
+                formatted_info.append(f"📞 **Teléfono:** {client_data[phone_field]}")
+                phone_found = True
+                break
+        
+        # Ciudad
+        city_found = False
+        for city_field in ['ciudad', 'city', 'municipio']:
+            if city_field in client_data and client_data[city_field]:
+                formatted_info.append(f"📍 **Ciudad:** {client_data[city_field]}")
+                city_found = True
+                break
+        
+        # Si no encontramos campos comunes, mostrar los primeros campos disponibles
+        if len(formatted_info) <= 1:  # Solo el documento
+            logger.info(f"⚠️ No common fields found, showing first available fields")
             count = 0
             for key, value in client_data.items():
-                if value and count < 5:  # Mostrar máximo 5 campos
+                if value and str(value).strip() != "" and count < 5:
                     formatted_info.append(f"• **{key}:** {value}")
                     count += 1
         
-        return "\n".join(formatted_info) if formatted_info else "No se pudo formatear la información del cliente"
+        result = "\n".join(formatted_info) if formatted_info else "ℹ️ Cliente encontrado (información limitada)"
+        logger.info(f"✅ Client info formatted successfully: {len(result)} characters")
+        return result
         
     except Exception as e:
         logger.error(f"❌ Error formatting client info: {e}")
-        return f"Error formateando información: {str(e)}"
+        return f"ℹ️ Cliente encontrado\n⚠️ Error mostrando detalles: {str(e)}"
