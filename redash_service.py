@@ -71,7 +71,134 @@ def get_clients_from_redash():
             return {"success": True, "data": clients_cache["data"], "cached": True, "expired": True}
         return {"success": False, "error": str(e)}
 
-def search_client_by_document(doc_type, doc_number):
+def get_unavailable_clients_from_redash():
+    """Obtener clientes no disponibles desde Redash con cache optimizado"""
+    current_time = time.time()
+    
+    # Verificar cache
+    if (unavailable_clients_cache["data"] is not None and 
+        current_time - unavailable_clients_cache["timestamp"] < unavailable_clients_cache["ttl"]):
+        logger.info("✅ Using cached unavailable clients data")
+        return {"success": True, "data": unavailable_clients_cache["data"], "cached": True}
+    
+    # Fetch fresh data
+    try:
+        url = f"{REDASH_BASE_URL}/api/queries/{REDASH_UNAVAILABLE_QUERY_ID}/results.json"
+        params = {'api_key': REDASH_UNAVAILABLE_API_KEY}
+        
+        logger.info(f"🔄 Fetching unavailable clients from Redash Query {REDASH_UNAVAILABLE_QUERY_ID}")
+        response = requests.get(url, params=params, timeout=REDASH_TIMEOUT)
+        
+        logger.info(f"📡 Redash Response: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Extraer datos de la estructura de Redash
+            query_result = data.get('query_result', {})
+            clients = query_result.get('data', {}).get('rows', [])
+            columns = query_result.get('data', {}).get('columns', [])
+            
+            logger.info(f"📊 Unavailable clients: {len(clients)} records with {len(columns)} columns")
+            
+            # Actualizar cache
+            unavailable_clients_cache["data"] = {
+                "clients": clients,
+                "columns": columns,
+                "metadata": {
+                    "total_rows": len(clients),
+                    "columns_count": len(columns),
+                    "last_updated": current_time
+                }
+            }
+            unavailable_clients_cache["timestamp"] = current_time
+            
+            return {
+                "success": True, 
+                "data": unavailable_clients_cache["data"], 
+                "cached": False
+            }
+        else:
+            logger.error(f"❌ Redash HTTP {response.status_code}: {response.text}")
+            # Fallback a cache expirado si existe
+            if unavailable_clients_cache["data"] is not None:
+                logger.info("⚠️ Using expired unavailable clients cache due to API error")
+                return {"success": True, "data": unavailable_clients_cache["data"], "cached": True, "expired": True}
+            return {"success": False, "error": f"HTTP {response.status_code}: {response.text}"}
+            
+    except Exception as e:
+        logger.error(f"❌ Error fetching unavailable clients: {e}")
+        # Fallback a cache expirado
+        if unavailable_clients_cache["data"] is not None:
+            logger.info("⚠️ Using expired unavailable clients cache due to exception")
+            return {"success": True, "data": unavailable_clients_cache["data"], "cached": True, "expired": True}
+        return {"success": False, "error": str(e)}
+
+def check_if_client_unavailable(doc_type, doc_number):
+    """Verificar si un cliente está en la lista de no disponibles"""
+    try:
+        logger.info(f"🚫 Checking if client is unavailable: {doc_type} {doc_number}")
+        
+        # Obtener data de clientes no disponibles
+        data_result = get_unavailable_clients_from_redash()
+        
+        if not data_result.get("success"):
+            logger.error(f"❌ Failed to get unavailable clients data: {data_result.get('error')}")
+            # Si no podemos verificar, asumimos que está disponible
+            return {"success": True, "unavailable": False, "error": "No se pudo verificar disponibilidad"}
+        
+        data = data_result.get("data", {})
+        clients = data.get("clients", [])
+        columns = data.get("columns", [])
+        
+        if not clients:
+            logger.info("ℹ️ No unavailable clients data - client is available")
+            return {"success": True, "unavailable": False}
+        
+        # Identificar columnas de documento
+        doc_columns = []
+        potential_doc_fields = [
+            'nit', 'cedula', 'documento', 'doc_number', 'identification', 
+            'tax_id', 'client_id', 'customer_id', 'id_number', 'cc'
+        ]
+        
+        for col in columns:
+            col_name = col.get('name', '').lower()
+            if any(field in col_name for field in potential_doc_fields):
+                doc_columns.append(col.get('name'))
+        
+        # Si no hay columnas específicas, usar todas
+        if not doc_columns:
+            doc_columns = [col.get('name') for col in columns]
+        
+        # Limpiar número de documento
+        clean_doc_number = str(doc_number).strip().replace('-', '').replace('.', '').replace(' ', '')
+        
+        # Buscar en clientes no disponibles
+        for client in clients:
+            if not isinstance(client, dict):
+                continue
+                
+            for col_name in doc_columns:
+                if col_name in client and client[col_name]:
+                    client_doc = str(client[col_name]).strip().replace('-', '').replace('.', '').replace(' ', '')
+                    
+                    if clean_doc_number == client_doc:
+                        logger.info(f"🚫 Client found in unavailable list: {doc_type} {doc_number}")
+                        return {
+                            "success": True, 
+                            "unavailable": True,
+                            "client_data": client,
+                            "matched_field": col_name
+                        }
+        
+        logger.info(f"✅ Client is available: {doc_type} {doc_number}")
+        return {"success": True, "unavailable": False}
+        
+    except Exception as e:
+        logger.error(f"❌ Error checking client availability: {e}")
+        # En caso de error, asumir que está disponible para no bloquear
+        return {"success": True, "unavailable": False, "error": str(e)}
     """Buscar cliente por tipo y número de documento"""
     try:
         logger.info(f"🔍 Starting search for {doc_type}: {doc_number}")
@@ -170,6 +297,40 @@ def search_client_by_document(doc_type, doc_number):
             
     except Exception as e:
         logger.error(f"❌ Error searching client: {e}")
+def search_client_by_document_with_availability(doc_type, doc_number):
+    """Buscar cliente implementando flujo de disponibilidad comercial"""
+    try:
+        logger.info(f"🔍 Starting commercial search flow for {doc_type}: {doc_number}")
+        
+        # PASO 1: Verificar si el cliente está en la lista de no disponibles
+        logger.info("🚫 PASO 1: Verificando disponibilidad del cliente...")
+        availability_check = check_if_client_unavailable(doc_type, doc_number)
+        
+        if not availability_check.get("success"):
+            return {
+                "success": False, 
+                "error": f"Error verificando disponibilidad: {availability_check.get('error')}", 
+                "found": False
+            }
+        
+        if availability_check.get("unavailable"):
+            # Cliente encontrado en lista de no disponibles
+            logger.info(f"🚫 Client is UNAVAILABLE: {doc_type} {doc_number}")
+            return {
+                "success": True,
+                "found": True,
+                "unavailable": True,
+                "client_data": availability_check.get("client_data"),
+                "matched_field": availability_check.get("matched_field"),
+                "message": "Cliente existente pero no disponible para crear órdenes"
+            }
+        
+        # PASO 2: Cliente disponible, buscar en base de datos principal
+        logger.info("✅ PASO 2: Cliente disponible, buscando información completa...")
+        return search_client_by_document(doc_type, doc_number)
+        
+    except Exception as e:
+        logger.error(f"❌ Error in commercial search flow: {e}")
         return {"success": False, "error": str(e), "found": False}
         
         if matching_clients:
