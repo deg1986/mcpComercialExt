@@ -1,14 +1,24 @@
-# 🔧 config.py - Configuración Central mcpComercialExt v1.0 - SIN LLM
+# 🔧 config.py - Configuración Central mcpComercialExt v1.1 - SECURE
 import os
+from dotenv import load_dotenv
 
-# ===== CONFIGURACIÓN TELEGRAM =====
-TELEGRAM_TOKEN = "7337079580:AAFxBDY4B1Muc6sUpV0uNxYa6DgVQh3LE_8"
-WEBHOOK_URL = os.environ.get('WEBHOOK_URL', 'https://your-app-url.onrender.com')
+# Cargar variables desde .env
+load_dotenv()
 
-# ===== CONFIGURACIÓN REDASH API =====
-REDASH_BASE_URL = "https://redash-mcp.farmuhub.co"
-REDASH_API_KEY = "MJAgj9yCdpVsWFdinPPfqBkQuvTBKmhCOD9JEmNZ"
-REDASH_QUERY_ID = "100"
+# ===== CONFIGURACIÓN TELEGRAM (SEGURA) =====
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+WEBHOOK_URL = os.getenv('WEBHOOK_URL', 'https://your-app-url.onrender.com')
+
+# ===== CONFIGURACIÓN REDASH API (SEGURA) =====
+REDASH_BASE_URL = os.getenv('REDASH_BASE_URL', 'https://redash-mcp.farmuhub.co')
+REDASH_API_KEY = os.getenv('REDASH_API_KEY')
+REDASH_QUERY_ID = os.getenv('REDASH_QUERY_ID', '100')
+
+# ===== VALIDACIÓN DE VARIABLES CRÍTICAS =====
+if not TELEGRAM_TOKEN:
+    raise ValueError("❌ TELEGRAM_TOKEN no está configurado en .env")
+if not REDASH_API_KEY:
+    raise ValueError("❌ REDASH_API_KEY no está configurado en .env")
 
 # ===== NO LLM - SOLO LÓGICA DIRECTA =====
 # Este sistema NO utiliza ningún modelo de lenguaje
