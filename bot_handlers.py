@@ -1,4 +1,23 @@
-# 🤖 bot_handlers.py - Manejadores del Bot Telegram v1.1 - FIXED
+text = """🎯 **Buscador de Clientes Comerciales** ⚡
+
+🔹 Te ayudo a buscar clientes y verificar su **disponibilidad comercial** para crear órdenes.
+
+**📋 ¿Qué puedo hacer?**
+• cliente - Buscar cliente y verificar disponibilidad
+• resumen - Ver información del sistema
+• info - Ver qué datos obtienes
+• help - Ver todos los comandos
+
+**🔍 Puedo buscar por:**
+• NIT - Número de Identificación Tributaria  
+• CC - Cédula de Ciudadanía
+
+**📊 Información que obtienes:**
+• 🏢 Nombre/Razón social
+• 👤 Representante legal
+• 📞 Teléfono de contacto
+• 📧 Email corporativo
+• 📍 Dirección compl# 🤖 bot_handlers.py - Manejadores del Bot Telegram v1.1 - FIXED
 import logging
 from flask import request
 from config import *
@@ -81,10 +100,10 @@ def handle_start_command(chat_id):
     
     text = """🎯 **Buscador de Clientes Comerciales** ⚡
 
-🔹 Te ayudo a buscar información **completa** de clientes de forma rápida y fácil.
+🔹 Te ayudo a buscar clientes y verificar su **disponibilidad comercial** para crear órdenes.
 
 **📋 ¿Qué puedo hacer?**
-• cliente - Buscar información completa de un cliente
+• cliente - Buscar cliente y verificar disponibilidad
 • resumen - Ver información del sistema
 • info - Ver qué datos obtienes
 • help - Ver todos los comandos
@@ -93,7 +112,12 @@ def handle_start_command(chat_id):
 • NIT - Número de Identificación Tributaria  
 • CC - Cédula de Ciudadanía
 
-**📊 Información que obtienes:**
+**📊 Estados de cliente:**
+• 🟢 **Disponible** - Puede crear órdenes
+• 🚫 **No Disponible** - Existe pero no puede crear órdenes
+• ❌ **No Encontrado** - Necesita pre-registro
+
+**📋 Información que obtienes:**
 • 🏢 Nombre/Razón social
 • 👤 Representante legal
 • 📞 Teléfono de contacto
@@ -105,7 +129,7 @@ def handle_start_command(chat_id):
 1. Escribe: cliente
 2. Selecciona: NIT o CC  
 3. Escribe el número del documento
-4. ¡Listo! Te muestro toda la información
+4. ¡Te muestro el estado y la información!
 
 🚀 **¡Empecemos a buscar clientes!**"""
     
@@ -113,10 +137,10 @@ def handle_start_command(chat_id):
 
 def handle_help_command(chat_id):
     """Comando /help - Ayuda"""
-    text = """📚 **¿Cómo usar el buscador?** ⚡
+    text = """📚 **¿Cómo usar el buscador comercial?** ⚡
 
 **🔍 Buscar Clientes:**
-• cliente - Empezar búsqueda completa
+• cliente - Empezar búsqueda con verificación comercial
 • NIT - Para empresas
 • CC - Para personas
 
@@ -130,9 +154,14 @@ def handle_help_command(chat_id):
 1. **Empezar:** Escribe `cliente`
 2. **Tipo:** Selecciona `NIT` o `CC`
 3. **Número:** Escribe el documento (solo números)
-4. **Resultado:** Te muestro información completa
+4. **Resultado:** Te muestro el estado comercial e información
 
-**📋 Información que obtienes:**
+**🚦 Estados de cliente:**
+• 🟢 **DISPONIBLE** - Cliente puede crear órdenes
+• 🚫 **NO DISPONIBLE** - Cliente existe pero no puede crear órdenes
+• ❌ **NO ENCONTRADO** - Necesita pre-registro
+
+**📋 Información completa que obtienes:**
 • 🔍 Documento de identidad
 • 🏢 Nombre/Razón social
 • 👤 Representante legal
@@ -140,6 +169,7 @@ def handle_help_command(chat_id):
 • 📧 Email corporativo
 • 📍 Dirección completa
 • 🌆 Ciudad y departamento
+• 🟢 Estado comercial (disponible/no disponible)
 
 **📄 Formatos que acepto:**
 • NIT: Entre 6 y 15 números
@@ -149,10 +179,14 @@ def handle_help_command(chat_id):
 • NIT: 901234567
 • CC: 12345678
 
-**✨ Características:**
-✅ Búsqueda instantánea
+**🆕 Para clientes nuevos:**
+Si no encuentras un cliente, te daré el enlace de pre-registro para crearlo.
+
+**✨ Características comerciales:**
+✅ Verificación de disponibilidad para órdenes
 ✅ Información completa del cliente
-✅ Datos comerciales relevantes
+✅ Enlaces de pre-registro automáticos
+✅ Estados comerciales claros
 ✅ Disponible 24/7"""
     
     send_telegram_message(chat_id, text, parse_mode='Markdown')
