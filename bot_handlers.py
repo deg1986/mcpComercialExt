@@ -2,7 +2,7 @@
 import logging
 from flask import request
 from config import *
-from redash_service import search_client_by_document, get_clients_summary, validate_document_number, format_client_info
+from redash_service import search_client_by_document_with_availability, get_clients_summary, validate_document_number, format_client_info
 from utils import send_telegram_message
 
 logger = logging.getLogger(__name__)
@@ -263,10 +263,10 @@ def handle_document_number_input(chat_id, user_id, doc_number):
             send_telegram_message(chat_id, f"❌ **Formato incorrecto:**\n{validation['error']}\n\n💡 Intenta nuevamente con solo números.", parse_mode='Markdown')
             return
         
-        # Buscar cliente
-        logger.info(f"🔍 Starting client search for {doc_type}: {doc_number}")
-        search_result = search_client_by_document(doc_type, doc_number)
-        logger.info(f"🔍 Search result: success={search_result.get('success')}, found={search_result.get('found')}")
+        # Buscar cliente con nuevo flujo comercial
+        logger.info(f"🔍 Starting commercial search for {doc_type}: {doc_number}")
+        search_result = search_client_by_document_with_availability(doc_type, doc_number)
+        logger.info(f"🔍 Search result: success={search_result.get('success')}, found={search_result.get('found')}, unavailable={search_result.get('unavailable', False)}")
         
         if not search_result["success"]:
             logger.error(f"❌ Search failed: {search_result.get('error')}")
@@ -274,81 +274,104 @@ def handle_document_number_input(chat_id, user_id, doc_number):
             return
         
         if search_result["found"]:
-            # Cliente encontrado
-            matches = search_result["matches"]
-            total_matches = search_result["total_matches"]
-            logger.info(f"✅ Found {total_matches} matches")
-            
-            if total_matches == 1:
-                # Un solo cliente encontrado
-                client_match = matches[0]
-                logger.info(f"🔍 Formatting single client info...")
+            # Verificar si es cliente no disponible
+            if search_result.get("unavailable"):
+                logger.info(f"🚫 Client is unavailable for orders")
+                response = f"""🚫 **CLIENTE EXISTENTE - NO DISPONIBLE** ⚠️
+
+**Documento:** {doc_type} {doc_number}
+
+❌ **Estado:** Este cliente **existe** en el sistema pero **NO está disponible** para crear nuevas órdenes en este momento.
+
+📞 **Recomendación:** Contacta a tu supervisor o al área comercial para más información sobre este cliente.
+
+💡 **Nueva búsqueda:** Escribe `cliente`"""
                 
-                try:
-                    client_info = format_client_info(
-                        client_match["client_data"], 
-                        client_match["matched_field"]
-                    )
-                    logger.info(f"✅ Client info formatted: {len(client_info)} chars")
+                send_telegram_message(chat_id, response, parse_mode='Markdown')
+                
+            else:
+                # Cliente encontrado y disponible
+                matches = search_result["matches"]
+                total_matches = search_result["total_matches"]
+                logger.info(f"✅ Found {total_matches} available matches")
+                
+                if total_matches == 1:
+                    # Un solo cliente encontrado
+                    client_match = matches[0]
+                    logger.info(f"🔍 Formatting single available client info...")
                     
-                    response = f"""✅ **¡CLIENTE ENCONTRADO!** 🎯
+                    try:
+                        client_info = format_client_info(
+                            client_match["client_data"], 
+                            client_match["matched_field"]
+                        )
+                        logger.info(f"✅ Client info formatted: {len(client_info)} chars")
+                        
+                        response = f"""✅ **¡CLIENTE DISPONIBLE!** 🎯
 
 {client_info}
+
+🟢 **Estado:** Cliente **disponible** para crear órdenes
 
 📋 **Búsqueda realizada:**
 • Tipo: {doc_type}
 • Número: {doc_number}
 
 💡 **Nueva búsqueda:** Escribe `cliente`"""
-                    
-                    logger.info(f"📤 Sending response: {len(response)} characters")
-                    success = send_telegram_message(chat_id, response, parse_mode='Markdown')
-                    logger.info(f"📤 Message sent: {success}")
-                    
-                except Exception as format_error:
-                    logger.error(f"❌ Format error: {format_error}")
-                    # Respuesta de fallback más simple
-                    simple_response = f"""✅ **¡CLIENTE ENCONTRADO!** 🎯
+                        
+                        logger.info(f"📤 Sending response: {len(response)} characters")
+                        success = send_telegram_message(chat_id, response, parse_mode='Markdown')
+                        logger.info(f"📤 Message sent: {success}")
+                        
+                    except Exception as format_error:
+                        logger.error(f"❌ Format error: {format_error}")
+                        # Respuesta de fallback más simple
+                        simple_response = f"""✅ **¡CLIENTE DISPONIBLE!** 🎯
 
 🔍 **Documento:** {doc_type} {doc_number}
-ℹ️ **Estado:** Cliente existe en la base de datos
+🟢 **Estado:** Cliente disponible para crear órdenes
 
 💡 **Nueva búsqueda:** Escribe `cliente`"""
-                    send_telegram_message(chat_id, simple_response, parse_mode='Markdown')
-                
-            else:
-                # Múltiples clientes encontrados
-                logger.info(f"🔍 Formatting multiple clients: {total_matches}")
-                response = f"""✅ **¡ENCONTRÉ VARIOS CLIENTES!** ({total_matches}) 🔍
+                        send_telegram_message(chat_id, simple_response, parse_mode='Markdown')
+                    
+                else:
+                    # Múltiples clientes encontrados
+                    logger.info(f"🔍 Formatting multiple available clients: {total_matches}")
+                    response = f"""✅ **¡VARIOS CLIENTES DISPONIBLES!** ({total_matches}) 🔍
 
 📋 **Documento buscado:** {doc_type} {doc_number}
+🟢 **Estado:** Clientes **disponibles** para crear órdenes
 ℹ️ **Resultado:** Se encontraron {total_matches} clientes con este documento
 
 💡 **Nueva búsqueda:** Escribe `cliente`"""
-                
-                send_telegram_message(chat_id, response, parse_mode='Markdown')
+                    
+                    send_telegram_message(chat_id, response, parse_mode='Markdown')
             
         else:
-            # Cliente no encontrado
+            # Cliente no encontrado - mostrar opción de pre-registro
             total_searched = search_result.get("total_clients_searched", 0)
-            logger.info(f"❌ No matches found in {total_searched} clients")
+            logger.info(f"❌ No matches found in {total_searched} clients - showing pre-register option")
             
-            response = f"""❌ **NO ENCONTRÉ ESTE CLIENTE** 🔍
+            response = f"""❌ **CLIENTE NO ENCONTRADO** 🔍
 
 **Lo que busqué:**
 • Tipo de documento: {doc_type}
 • Número: {doc_number}
 • Clientes consultados: {total_searched:,}
 
-**¿Qué puede haber pasado?**
-• El documento no está en la base de datos
-• Puede estar registrado de forma diferente
-• Verifica si escribiste bien el número
+**¿Qué hacer ahora?**
 
-💡 **Sugerencias:**
-• Revisa el número del documento
-• Intenta con el otro tipo (NIT/CC si corresponde)
-• Escribe `cliente` para buscar otro"""
+🆕 **CREAR NUEVO CLIENTE:**
+Para registrar este cliente usa el siguiente enlace:
+
+🔗 **{PREREGISTER_URL}**
+
+📝 **Pasos:**
+1. Hacer clic en el enlace de arriba
+2. Completar el formulario de pre-registro
+3. Una vez registrado, podrás crear órdenes
+
+💡 **Nueva búsqueda:** Escribe `cliente`"""
             
             send_telegram_message(chat_id, response, parse_mode='Markdown')
         
