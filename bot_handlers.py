@@ -41,6 +41,25 @@ def setup_telegram_routes(app):
                 handle_client_search_start(chat_id, user_id)
             elif text_lower in ['/resumen', 'resumen', 'estadisticas', 'stats']:
                 handle_stats_command(chat_id)
+            elif text_lower in ['/info', 'info', 'detalle', 'detalles']:
+                send_telegram_message(chat_id, """ℹ️ **INFORMACIÓN DETALLADA** 📋
+
+Para obtener información completa de un cliente:
+1. Usa `cliente` para buscar
+2. El sistema mostrará automáticamente:
+
+**📊 Datos principales:**
+• 🔍 Documento de identidad
+• 🏢 Nombre/Razón social  
+• 👤 Representante legal
+• 📞 Teléfono de contacto
+• 📧 Email corporativo
+• 📍 Dirección completa
+• 🌆 Ciudad y departamento
+
+**💡 Tip:** Toda la información disponible se muestra automáticamente en cada búsqueda.
+
+🔍 **Para buscar:** Escribe `cliente`""", parse_mode='Markdown')
             elif text_lower in ['nit', 'cc'] and user_id in user_states:
                 handle_document_type_selection(chat_id, user_id, text.upper())
             else:
@@ -60,24 +79,33 @@ def handle_start_command(chat_id):
     """Comando /start - Bienvenida"""
     logger.info(f"📱 /start from chat {chat_id}")
     
-    text = """🎯 **Buscador de Clientes** ⚡
+    text = """🎯 **Buscador de Clientes Comerciales** ⚡
 
-🔹 Te ayudo a buscar información de clientes de forma rápida y fácil.
+🔹 Te ayudo a buscar información **completa** de clientes de forma rápida y fácil.
 
 **📋 ¿Qué puedo hacer?**
-• cliente - Buscar un cliente
-• resumen - Ver información general
+• cliente - Buscar información completa de un cliente
+• resumen - Ver información del sistema
+• info - Ver qué datos obtienes
 • help - Ver todos los comandos
 
 **🔍 Puedo buscar por:**
 • NIT - Número de Identificación Tributaria  
 • CC - Cédula de Ciudadanía
 
+**📊 Información que obtienes:**
+• 🏢 Nombre/Razón social
+• 👤 Representante legal
+• 📞 Teléfono de contacto
+• 📧 Email corporativo
+• 📍 Dirección completa
+• 🌆 Ciudad y departamento
+
 **💡 ¿Cómo funciona?**
 1. Escribe: cliente
 2. Selecciona: NIT o CC  
 3. Escribe el número del documento
-4. ¡Listo! Te muestro la información
+4. ¡Listo! Te muestro toda la información
 
 🚀 **¡Empecemos a buscar clientes!**"""
     
@@ -88,12 +116,13 @@ def handle_help_command(chat_id):
     text = """📚 **¿Cómo usar el buscador?** ⚡
 
 **🔍 Buscar Clientes:**
-• cliente - Empezar búsqueda
+• cliente - Empezar búsqueda completa
 • NIT - Para empresas
 • CC - Para personas
 
 **📊 Información:**
-• resumen - Ver datos disponibles
+• resumen - Ver datos del sistema
+• info - Detalles sobre qué información se muestra
 • help - Mostrar esta ayuda
 • start - Volver al inicio
 
@@ -101,7 +130,16 @@ def handle_help_command(chat_id):
 1. **Empezar:** Escribe `cliente`
 2. **Tipo:** Selecciona `NIT` o `CC`
 3. **Número:** Escribe el documento (solo números)
-4. **Resultado:** Te muestro la información
+4. **Resultado:** Te muestro información completa
+
+**📋 Información que obtienes:**
+• 🔍 Documento de identidad
+• 🏢 Nombre/Razón social
+• 👤 Representante legal
+• 📞 Teléfono de contacto
+• 📧 Email corporativo
+• 📍 Dirección completa
+• 🌆 Ciudad y departamento
 
 **📄 Formatos que acepto:**
 • NIT: Entre 6 y 15 números
@@ -114,7 +152,7 @@ def handle_help_command(chat_id):
 **✨ Características:**
 ✅ Búsqueda instantánea
 ✅ Información completa del cliente
-✅ Fácil de usar
+✅ Datos comerciales relevantes
 ✅ Disponible 24/7"""
     
     send_telegram_message(chat_id, text, parse_mode='Markdown')
