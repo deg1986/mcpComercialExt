@@ -1,4 +1,4 @@
-# 🤖 bot_handlers.py - Manejadores del Bot Telegram v1.0
+# 🤖 bot_handlers.py - Manejadores del Bot Telegram v1.1 - FIXED
 import logging
 from flask import request
 from config import *
@@ -198,13 +198,13 @@ def handle_conversation_state(chat_id, user_id, text):
         else:
             # Estado no reconocido, reiniciar
             del user_states[user_id]
-            send_telegram_message(chat_id, "❌ **Estado de conversación inválido.** Usa `/cliente` para reiniciar.", parse_mode='Markdown')
+            send_telegram_message(chat_id, "❌ **Estado de conversación inválido.** Usa `cliente` para reiniciar.", parse_mode='Markdown')
     
     except Exception as e:
         logger.error(f"❌ Conversation state error: {e}")
         if user_id in user_states:
             del user_states[user_id]
-        send_telegram_message(chat_id, "❌ **Error procesando solicitud.** Usa `/cliente` para reiniciar.", parse_mode='Markdown')
+        send_telegram_message(chat_id, "❌ **Error procesando solicitud.** Usa `cliente` para reiniciar.", parse_mode='Markdown')
 
 def handle_document_number_input(chat_id, user_id, doc_number):
     """Manejar entrada del número de documento"""
@@ -314,7 +314,6 @@ def handle_stats_command(chat_id):
             return
         
         stats = summary_result["stats"]
-        columns = summary_result["columns"]
         
         response = f"""📊 **INFORMACIÓN DEL SISTEMA** ⚡
 
@@ -341,5 +340,30 @@ def handle_stats_command(chat_id):
     except Exception as e:
         logger.error(f"❌ Stats error: {e}")
         send_telegram_message(chat_id, f"❌ **Hubo un problema al obtener la información.**\nPor favor intenta en unos minutos.", parse_mode='Markdown')
-        
-        response +=
+
+def handle_unknown_command(chat_id, text):
+    """Manejar comandos no reconocidos"""
+    text_lower = text.lower()
+    
+    # Sugerencias inteligentes
+    if any(word in text_lower for word in ['cliente', 'buscar', 'encontrar', 'search']):
+        suggestion = "💡 **Sugerencia:** Escribe `cliente` para buscar un cliente"
+    elif any(word in text_lower for word in ['nit', 'cedula', 'documento']):
+        suggestion = "💡 **Sugerencia:** Escribe `cliente` primero, luego elige el tipo de documento"
+    elif any(word in text_lower for word in ['estadistica', 'resumen', 'info']):
+        suggestion = "💡 **Sugerencia:** Escribe `resumen` para ver información del sistema"
+    else:
+        suggestion = "💡 **Sugerencia:** Escribe `help` para ver qué puedo hacer"
+    
+    response = f"""❓ **No entendí:** `{text}`
+
+{suggestion}
+
+**📋 Lo que puedo hacer:**
+• `cliente` - Buscar un cliente
+• `resumen` - Ver información general  
+• `help` - Ver todos los comandos
+
+**🔍 ¿Quieres buscar un cliente?** Escribe: `cliente`"""
+    
+    send_telegram_message(chat_id, response, parse_mode='Markdown')
