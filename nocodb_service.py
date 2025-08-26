@@ -104,6 +104,53 @@ def validate_phone_format(phone):
     except Exception as e:
         return {"valid": False, "error": f"Error validando teléfono: {str(e)}"}
 
+def validate_order_number_format(order_number):
+    """Validar y normalizar formato de número de orden"""
+    try:
+        if not order_number or not isinstance(order_number, str):
+            return {"valid": False, "error": "Número de orden requerido"}
+        
+        # Limpiar y normalizar
+        clean_order = order_number.strip().upper()
+        
+        # Si no tiene prefijo, agregarlo
+        if not clean_order.startswith(ORDER_NUMBER_PREFIX):
+            # Remover cualquier prefijo parcial (mp-, Mp-, etc)
+            if clean_order.lower().startswith('mp'):
+                clean_order = clean_order[2:].lstrip('-')
+            
+            # Agregar prefijo correcto
+            clean_order = ORDER_NUMBER_PREFIX + clean_order
+        
+        # Validar formato final
+        if not clean_order.startswith(ORDER_NUMBER_PREFIX):
+            return {"valid": False, "error": f"El número de orden debe comenzar con {ORDER_NUMBER_PREFIX}"}
+        
+        # Extraer la parte numérica después del prefijo
+        order_suffix = clean_order[len(ORDER_NUMBER_PREFIX):]
+        
+        # Validar longitud
+        if len(order_suffix) < MIN_ORDER_LENGTH:
+            return {"valid": False, "error": f"El número de orden debe tener al menos {MIN_ORDER_LENGTH} caracteres después de {ORDER_NUMBER_PREFIX}"}
+        
+        if len(order_suffix) > MAX_ORDER_LENGTH:
+            return {"valid": False, "error": f"El número de orden no puede tener más de {MAX_ORDER_LENGTH} caracteres después de {ORDER_NUMBER_PREFIX}"}
+        
+        # Validar caracteres (solo números y guiones)
+        valid_chars = True
+        for char in order_suffix:
+            if not (char.isdigit() or char == '-'):
+                valid_chars = False
+                break
+        
+        if not valid_chars:
+            return {"valid": False, "error": "El número de orden solo puede contener números y guiones después del prefijo"}
+        
+        return {"valid": True, "normalized_order": clean_order}
+        
+    except Exception as e:
+        return {"valid": False, "error": f"Error validando número de orden: {str(e)}"}
+
 def check_comercial_exists(cedula):
     """Verificar si el comercial ya existe en NocoDB"""
     try:
@@ -135,7 +182,6 @@ def check_comercial_exists(cedula):
         logger.info(f"📋 Headers: {headers}")
         
         # Debug: Log equivalent curl command
-        import urllib.parse
         query_string = urllib.parse.urlencode(params)
         full_url = f"{url}?{query_string}"
         curl_command = f"""
@@ -258,7 +304,6 @@ def create_comercial(cedula, email, name, phone):
         logger.info(f"📦 Payload: {payload}")
         
         # Debug: Log equivalent curl command
-        import json
         curl_command = f"""
 Equivalent CURL:
 curl -X 'POST' '{url}' \\
@@ -358,379 +403,6 @@ def get_comercial_info(cedula):
     except Exception as e:
         logger.error(f"❌ Error getting comercial info: {e}")
         return {"success": False, "error": f"Error obteniendo información: {str(e)}"}
-
-def format_comercial_info(comercial_data):
-    """Formatear información del comercial para mostrar"""
-    try:
-        if not isinstance(comercial_data, dict):
-            return "Datos de comercial inválidos"
-        
-        info_parts = []
-        
-        # Información principal
-        if "name" in comercial_data and comercial_data["name"]:
-            info_parts.append(f"👤 Nombre: {comercial_data['name']}")
-        
-        if "cedula" in comercial_data and comercial_data["cedula"]:
-            info_parts.append(f"🆔 Cédula: {comercial_data['cedula']}")
-        
-        if "email" in comercial_data and comercial_data["email"]:
-            info_parts.append(f"📧 Email: {comercial_data['email']}")
-        
-        if "phone" in comercial_data and comercial_data["phone"]:
-            info_parts.append(f"📞 Teléfono: {comercial_data['phone']}")
-        
-        # Información adicional si está disponible
-        if "created_at" in comercial_data and comercial_data["created_at"]:
-            info_parts.append(f"📅 Registrado: {comercial_data['created_at'][:10]}")
-        
-        return "\n".join(info_parts) if info_parts else "Información de comercial disponible"
-        
-    except Exception as e:
-        logger.error(f"❌ Error formatting comercial info: {e}")
-        return "Error mostrando información del comercial"
-
-# ===== FUNCIONES PARA ÓRDENES =====
-
-def validate_order_number_format(order_number):
-    """Validar y normalizar formato de número de orden"""
-    try:
-        if not order_number or not isinstance(order_number, str):
-            return {"valid": False, "error": "Número de orden requerido"}
-        
-        # Limpiar y normalizar
-        clean_order = order_number.strip().upper()
-        
-        # Si no tiene prefijo, agregarlo
-        if not clean_order.startswith(ORDER_NUMBER_PREFIX):
-            # Remover cualquier prefijo parcial (mp-, Mp-, etc)
-            if clean_order.lower().startswith('mp'):
-                clean_order = clean_order[2:].lstrip('-')
-            
-            # Agregar prefijo correcto
-            clean_order = ORDER_NUMBER_PREFIX + clean_order
-        
-        # Validar formato final
-        if not clean_order.startswith(ORDER_NUMBER_PREFIX):
-            return {"valid": False, "error": f"El número de orden debe comenzar con {ORDER_NUMBER_PREFIX}"}
-        
-        # Extraer la parte numérica después del prefijo
-        order_suffix = clean_order[len(ORDER_NUMBER_PREFIX):]
-        
-        # Validar longitud
-        if len(order_suffix) < MIN_ORDER_LENGTH:
-            return {"valid": False, "error": f"El número de orden debe tener al menos {MIN_ORDER_LENGTH} caracteres después de {ORDER_NUMBER_PREFIX}"}
-        
-        if len(order_suffix) > MAX_ORDER_LENGTH:
-            return {"valid": False, "error": f"El número de orden no puede tener más de {MAX_ORDER_LENGTH} caracteres después de {ORDER_NUMBER_PREFIX}"}
-        
-        # Validar caracteres (solo números y guiones)
-        if not re.match(r'^[0-9\-]+
-        
-        return {"valid": True, "normalized_order": clean_order}
-        
-    except Exception as e:
-        return {"valid": False, "error": f"Error validando número de orden: {str(e)}"}
-
-def get_comercial_by_cedula(cedula):
-    """Obtener comercial por cédula y retornar ID si existe"""
-    try:
-        logger.info(f"🔍 Getting comercial by cedula: {cedula}")
-        
-        # Reutilizar la función existente pero extraer el ID
-        exists_check = check_comercial_exists(cedula)
-        
-        if not exists_check.get("success"):
-            return {"success": False, "error": exists_check.get("error")}
-        
-        if not exists_check.get("exists"):
-            return {
-                "success": True,
-                "found": False,
-                "message": f"No se encontró comercial con cédula {cedula}"
-            }
-        
-        comercial_data = exists_check.get("comercial_data", {})
-        comercial_id = comercial_data.get("Id") or comercial_data.get("id")
-        
-        if not comercial_id:
-            logger.warning(f"⚠️ Comercial found but no ID field: {comercial_data}")
-            return {
-                "success": False,
-                "error": "Comercial encontrado pero sin ID válido"
-            }
-        
-        logger.info(f"✅ Comercial found with ID: {comercial_id}")
-        
-        return {
-            "success": True,
-            "found": True,
-            "comercial_id": comercial_id,
-            "comercial_data": comercial_data,
-            "message": f"Comercial encontrado: {comercial_data.get('name', 'Sin nombre')}"
-        }
-        
-    except Exception as e:
-        logger.error(f"❌ Error getting comercial by cedula: {e}")
-        return {"success": False, "error": f"Error obteniendo comercial: {str(e)}"}
-
-def check_order_exists(order_number):
-    """Verificar si la orden existe en NocoDB"""
-    try:
-        logger.info(f"📦 Checking if order exists: {order_number}")
-        
-        # Validar y normalizar número de orden
-        validation = validate_order_number_format(order_number)
-        if not validation["valid"]:
-            return {"success": False, "error": validation["error"]}
-        
-        normalized_order = validation["normalized_order"]
-        
-        # Construir URL para consulta de órdenes
-        url = f"{NOCODB_BASE_URL}/tables/{NOCODB_ORDERS_TABLE_ID}/records"
-        params = {
-            "where": f"(order_number,eq,{normalized_order})",
-            "limit": 1,
-            "shuffle": 0,
-            "offset": 0
-        }
-        
-        headers = {
-            "accept": "application/json",
-            "xc-token": NOCODB_TOKEN
-        }
-        
-        logger.info(f"📡 Making GET request to: {url}")
-        logger.info(f"📋 Params: {params}")
-        
-        # Debug: Log equivalent curl command
-        query_string = urllib.parse.urlencode(params)
-        full_url = f"{url}?{query_string}"
-        curl_command = f"""
-Equivalent CURL:
-curl -X 'GET' '{full_url}' \\
-  -H 'accept: application/json' \\
-  -H 'xc-token: {NOCODB_TOKEN}'
-"""
-        logger.info(curl_command)
-        
-        response = requests.get(url, params=params, headers=headers, timeout=NOCODB_TIMEOUT)
-        
-        logger.info(f"📡 NocoDB Response Status: {response.status_code}")
-        logger.info(f"📡 NocoDB Response Body: {response.text}")
-        
-        if response.status_code != 200:
-            logger.error(f"❌ NocoDB HTTP Error: {response.status_code} - {response.text}")
-            return {"success": False, "error": f"Error consultando órdenes: HTTP {response.status_code}"}
-        
-        try:
-            data = response.json()
-            page_info = data.get("pageInfo", {})
-            total_rows = page_info.get("totalRows", 0)
-            
-            logger.info(f"📊 Query result: totalRows = {total_rows}")
-            
-            if total_rows > 0:
-                # Orden existe
-                existing_records = data.get("list", [])
-                existing_order = existing_records[0] if existing_records else {}
-                
-                logger.info(f"📦 Order exists: {normalized_order}")
-                logger.info(f"📦 Order data: {existing_order}")
-                
-                return {
-                    "success": True,
-                    "exists": True,
-                    "order_data": existing_order,
-                    "normalized_order": normalized_order,
-                    "message": f"La orden {normalized_order} existe en el sistema"
-                }
-            else:
-                logger.info(f"❌ Order does not exist: {normalized_order}")
-                return {
-                    "success": True,
-                    "exists": False,
-                    "normalized_order": normalized_order,
-                    "message": f"La orden {normalized_order} no existe en el sistema"
-                }
-        
-        except json.JSONDecodeError as je:
-            logger.error(f"❌ Invalid JSON response: {je}")
-            return {"success": False, "error": f"Respuesta inválida del servidor: {je}"}
-        
-    except requests.exceptions.Timeout:
-        logger.error(f"❌ Timeout checking order existence")
-        return {"success": False, "error": "Timeout al verificar orden. Intenta nuevamente."}
-    
-    except requests.exceptions.ConnectionError:
-        logger.error(f"❌ Connection error checking order existence")
-        return {"success": False, "error": "Error de conexión con NocoDB. Verifica la conectividad."}
-        
-    except Exception as e:
-        logger.error(f"❌ Unexpected error checking order existence: {e}")
-        return {"success": False, "error": f"Error verificando orden: {str(e)}"}
-
-def assign_order_to_comercial(order_number, comercial_id):
-    """Asignar una orden a un comercial externo"""
-    try:
-        logger.info(f"🎯 Assigning order {order_number} to comercial ID {comercial_id}")
-        
-        # Validar y normalizar número de orden
-        validation = validate_order_number_format(order_number)
-        if not validation["valid"]:
-            return {"success": False, "error": validation["error"]}
-        
-        normalized_order = validation["normalized_order"]
-        
-        # Construir request para asignación
-        url = f"{NOCODB_BASE_URL}/tables/{NOCODB_ASSIGNMENTS_TABLE_ID}/records"
-        
-        headers = {
-            "accept": "application/json",
-            "xc-token": NOCODB_TOKEN,
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "order_number": normalized_order,
-            "commercial_ext": comercial_id
-        }
-        
-        logger.info(f"📡 Making POST request to: {url}")
-        logger.info(f"📋 Headers: {headers}")
-        logger.info(f"📦 Payload: {payload}")
-        
-        # Debug: Log equivalent curl command
-        curl_command = f"""
-Equivalent CURL:
-curl -X 'POST' '{url}' \\
-  -H 'accept: application/json' \\
-  -H 'xc-token: {NOCODB_TOKEN}' \\
-  -H 'Content-Type: application/json' \\
-  -d '{json.dumps(payload)}'
-"""
-        logger.info(curl_command)
-        
-        response = requests.post(url, json=payload, headers=headers, timeout=NOCODB_TIMEOUT)
-        
-        logger.info(f"📡 NocoDB Response Status: {response.status_code}")
-        logger.info(f"📡 NocoDB Response Headers: {dict(response.headers)}")
-        logger.info(f"📡 NocoDB Response Body: {response.text}")
-        
-        if response.status_code in [200, 201]:
-            try:
-                assignment_data = response.json()
-                logger.info(f"✅ Order assigned successfully: {normalized_order} -> {comercial_id}")
-                
-                return {
-                    "success": True,
-                    "assignment_data": assignment_data,
-                    "message": f"Orden {normalized_order} asignada exitosamente",
-                    "details": {
-                        "order_number": normalized_order,
-                        "comercial_id": comercial_id
-                    }
-                }
-            except json.JSONDecodeError as je:
-                logger.warning(f"⚠️ Response is not valid JSON: {je}")
-                # Si la respuesta no es JSON válido, pero el status es 200/201, asumir éxito
-                return {
-                    "success": True,
-                    "assignment_data": {"status": "assigned"},
-                    "message": f"Orden {normalized_order} asignada exitosamente",
-                    "details": {
-                        "order_number": normalized_order,
-                        "comercial_id": comercial_id
-                    },
-                    "note": "Response was not JSON but assignment appears successful"
-                }
-        else:
-            logger.error(f"❌ NocoDB Assignment Error: {response.status_code}")
-            logger.error(f"❌ Error details: {response.text}")
-            
-            # Intentar parsear el error
-            try:
-                error_data = response.json()
-                error_message = error_data.get('message', response.text)
-            except:
-                error_message = response.text
-            
-            return {
-                "success": False,
-                "error": f"Error asignando orden (HTTP {response.status_code}): {error_message}",
-                "details": {
-                    "status_code": response.status_code,
-                    "response_body": response.text,
-                    "url": url,
-                    "payload": payload
-                }
-            }
-        
-    except requests.exceptions.Timeout:
-        logger.error(f"❌ Timeout error assigning order")
-        return {"success": False, "error": "Timeout al asignar orden. Intenta nuevamente."}
-    
-    except requests.exceptions.ConnectionError:
-        logger.error(f"❌ Connection error assigning order")
-        return {"success": False, "error": "Error de conexión con NocoDB. Verifica la conectividad."}
-        
-    except Exception as e:
-        logger.error(f"❌ Unexpected error assigning order: {e}")
-        return {"success": False, "error": f"Error inesperado asignando orden: {str(e)}"}
-
-def process_order_assignment(cedula, order_number):
-    """Procesar asignación completa de orden a comercial"""
-    try:
-        logger.info(f"🎯 Processing order assignment: {order_number} to cedula {cedula}")
-        
-        # Paso 1: Verificar comercial y obtener ID
-        comercial_result = get_comercial_by_cedula(cedula)
-        if not comercial_result.get("success"):
-            return {"success": False, "error": comercial_result.get("error")}
-        
-        if not comercial_result.get("found"):
-            return {"success": False, "error": comercial_result.get("message")}
-        
-        comercial_id = comercial_result.get("comercial_id")
-        comercial_data = comercial_result.get("comercial_data")
-        
-        # Paso 2: Verificar que la orden existe
-        order_result = check_order_exists(order_number)
-        if not order_result.get("success"):
-            return {"success": False, "error": order_result.get("error")}
-        
-        if not order_result.get("exists"):
-            return {"success": False, "error": order_result.get("message")}
-        
-        normalized_order = order_result.get("normalized_order")
-        
-        # Paso 3: Asignar orden al comercial
-        assignment_result = assign_order_to_comercial(normalized_order, comercial_id)
-        if not assignment_result.get("success"):
-            return {"success": False, "error": assignment_result.get("error")}
-        
-        # Éxito completo
-        return {
-            "success": True,
-            "message": f"Orden {normalized_order} asignada exitosamente a {comercial_data.get('name', 'comercial')}",
-            "details": {
-                "order_number": normalized_order,
-                "comercial_id": comercial_id,
-                "comercial_name": comercial_data.get('name'),
-                "comercial_cedula": comercial_data.get('cedula')
-            },
-            "assignment_data": assignment_result.get("assignment_data")
-        }
-        
-    except Exception as e:
-        logger.error(f"❌ Error processing order assignment: {e}")
-        return {"success": False, "error": f"Error procesando asignación: {str(e)}"}, order_suffix):
-            return {"valid": False, "error": "El número de orden solo puede contener números y guiones después del prefijo"}
-        
-        return {"valid": True, "normalized_order": clean_order}
-        
-    except Exception as e:
-        return {"valid": False, "error": f"Error validando número de orden: {str(e)}"}
 
 def get_comercial_by_cedula(cedula):
     """Obtener comercial por cédula y retornar ID si existe"""
@@ -1025,3 +697,34 @@ def process_order_assignment(cedula, order_number):
     except Exception as e:
         logger.error(f"❌ Error processing order assignment: {e}")
         return {"success": False, "error": f"Error procesando asignación: {str(e)}"}
+
+def format_comercial_info(comercial_data):
+    """Formatear información del comercial para mostrar"""
+    try:
+        if not isinstance(comercial_data, dict):
+            return "Datos de comercial inválidos"
+        
+        info_parts = []
+        
+        # Información principal
+        if "name" in comercial_data and comercial_data["name"]:
+            info_parts.append(f"👤 Nombre: {comercial_data['name']}")
+        
+        if "cedula" in comercial_data and comercial_data["cedula"]:
+            info_parts.append(f"🆔 Cédula: {comercial_data['cedula']}")
+        
+        if "email" in comercial_data and comercial_data["email"]:
+            info_parts.append(f"📧 Email: {comercial_data['email']}")
+        
+        if "phone" in comercial_data and comercial_data["phone"]:
+            info_parts.append(f"📞 Teléfono: {comercial_data['phone']}")
+        
+        # Información adicional si está disponible
+        if "created_at" in comercial_data and comercial_data["created_at"]:
+            info_parts.append(f"📅 Registrado: {comercial_data['created_at'][:10]}")
+        
+        return "\n".join(info_parts) if info_parts else "Información de comercial disponible"
+        
+    except Exception as e:
+        logger.error(f"❌ Error formatting comercial info: {e}")
+        return "Error mostrando información del comercial"
