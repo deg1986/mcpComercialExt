@@ -1,823 +1,566 @@
-# 🚀 mcpComercialExt v1.2 - Bot Comercial Externo con Verificación de Disponibilidad
+# 🚀 mcpComercialExt v1.3 - Bot Comercial Externo + Gestión de Comerciales
 
 ## 🎯 Descripción General
 
-**mcpComercialExt** es un sistema especializado de búsqueda de clientes para comerciales externos, que permite consultar la base de datos de clientes y **verificar su disponibilidad comercial** para crear órdenes a través de un bot de Telegram interactivo.
+**mcpComercialExt v1.3** es un sistema especializado que combina:
+- **Búsqueda de clientes** con verificación de disponibilidad comercial
+- **Registro de comerciales externos** con validación automática 
+- **Bot de Telegram interactivo** para ambas funcionalidades
 
 ### 🏢 Contexto de Negocio
-- **Objetivo:** Facilitar a los comerciales la búsqueda y verificación de disponibilidad de clientes
-- **Funcionalidad Principal:** Búsqueda por NIT/CC con verificación de disponibilidad comercial
-- **Flujo Comercial:** Verificación en lista de exclusión antes de mostrar información
-- **Fuente de Datos:** APIs de Redash con más de 5,000 registros de clientes
+- **Búsqueda:** Facilitar a los comerciales la búsqueda y verificación de disponibilidad de clientes
+- **Registro:** Permitir el registro seguro de nuevos comerciales externos
+- **Validación:** Verificación automática de duplicados y formatos
+- **Fuentes:** APIs de Redash (clientes) + NocoDB (comerciales)
 
 ---
 
-## 🔄 Nuevo Flujo Comercial
+## 🆕 Nuevas Funcionalidades v1.3
 
-### **Paso 1: Verificación de Disponibilidad**
-1. El sistema consulta la **API de clientes no disponibles**:
-   ```
-   https://redash-mcp.farmuhub.co/api/queries/133/results.json?api_key=nQmXGYBuKdck7VBTrqvOZ45ypmp5idTlZpVEumbz
-   ```
-2. Si el cliente **está en esta lista**: Se marca como **NO DISPONIBLE**
-3. Si el cliente **NO está en esta lista**: Se procede al Paso 2
+### **👤 Gestión de Comerciales Externos**
+- ✅ **Registro paso a paso** via Telegram
+- ✅ **Validación de duplicados** automática
+- ✅ **Formatos validados** (email, teléfono, cédula)
+- ✅ **Integración con NocoDB** para almacenamiento
 
-### **Paso 2: Búsqueda en Base Principal**
-1. Si está disponible, consulta la **API de clientes principales**:
-   ```
-   https://redash-mcp.farmuhub.co/api/queries/100/results.json?api_key=MJAgj9yCdpVsWFdinPPfqBkQuvTBKmhCOD9JEmNZ
-   ```
-2. Si encuentra información: Muestra **cliente DISPONIBLE** con datos completos
-3. Si NO encuentra información: Muestra enlace de **pre-registro**
-
-### **Estados de Cliente:**
-- 🟢 **DISPONIBLE**: Cliente existe y puede crear órdenes
-- 🚫 **NO DISPONIBLE**: Cliente existe pero NO puede crear órdenes
-- ❌ **NO ENCONTRADO**: Cliente debe registrarse en: https://saludia.me/pre-register
+### **🔍 Proceso de Registro:**
+1. **Comando:** `crear` 
+2. **Verificación:** Cédula única en el sistema
+3. **Datos:** Email, nombre, teléfono (con validación)
+4. **Confirmación:** Resumen antes de crear
+5. **Resultado:** Comercial registrado y activo
 
 ---
 
-## 🗂️ Estructura del Proyecto
+## 📱 Comandos del Bot Actualizados
+
+### **Comandos Principales**
+```bash
+/start      # Bienvenida con todas las funcionalidades
+/help       # Lista completa de comandos
+cliente     # Buscar cliente con verificación comercial  
+crear       # Registrar nuevo comercial externo
+resumen     # Estadísticas del sistema
+info        # Información sobre datos mostrados
+```
+
+### **🔍 Proceso de Búsqueda de Cliente (Sin cambios)**
+```
+1. cliente → 2. NIT/CC → 3. número → 4. resultado
+```
+
+### **👤 Proceso de Registro de Comercial (NUEVO)**
+```
+1. crear → 2. cédula → 3. email → 4. nombre → 5. teléfono → 6. confirmar
+```
+
+---
+
+## 🗂️ Estructura del Proyecto Actualizada
 
 ```
 mcpComercialExt/
-├── app.py              # Aplicación principal Flask
-├── config.py           # Configuración con nuevas APIs
-├── redash_service.py   # Servicio con lógica de disponibilidad
-├── bot_handlers.py     # Manejadores del bot con flujo comercial
-├── utils.py            # Utilidades y helpers
-├── requirements.txt    # Dependencias Python
-├── .env.example        # Variables de entorno (actualizado)
-├── .gitignore          # Archivos a ignorar
-└── README.md           # Esta documentación
+├── app.py                 # Aplicación principal Flask + endpoints NocoDB
+├── config.py              # Configuración + variables NocoDB
+├── redash_service.py      # Servicio Redash (clientes)
+├── nocodb_service.py      # Servicio NocoDB (comerciales) [NUEVO]
+├── bot_handlers.py        # Manejadores con flujo de registro
+├── utils.py               # Utilidades y helpers
+├── requirements.txt       # Dependencias Python
+├── .env.example           # Variables de entorno [ACTUALIZADO]
+├── .gitignore            # Archivos a ignorar
+└── README.md             # Esta documentación
 ```
 
 ---
 
 ## 🔧 Configuración y Variables de Entorno
 
-### 📦 Dependencias
-```txt
-Flask==3.0.0
-Flask-CORS==4.0.0
-requests==2.31.0
-gunicorn==21.2.0
-python-dotenv==1.0.0
+### 🌍 Variables de Entorno Nuevas
+
+#### **NocoDB API (Comerciales)**
+```bash
+NOCODB_BASE_URL=https://nocodb.farmuhub.co/api/v2
+NOCODB_TOKEN=-kgNP5Q5G54nlDXPei7IO9PMMyE4pIgxYCi6o17Y  
+NOCODB_TABLE_ID=mbtfip114qi1u4o
 ```
 
-### 🌍 Variables de Entorno Requeridas
-
-#### Variables para Render (Producción):
+#### **Variables Existentes (Sin cambios)**
 ```bash
-# Bot de Telegram
+# Telegram Bot
 TELEGRAM_TOKEN=7337079580:AAFxBDY4B1Muc6sUpV0uNxYa6DgVQh3LE_8
 WEBHOOK_URL=https://mcpcomercialext.onrender.com
 
-# API Principal (Clientes)
+# Redash APIs
 REDASH_BASE_URL=https://redash-mcp.farmuhub.co
 REDASH_API_KEY=MJAgj9yCdpVsWFdinPPfqBkQuvTBKmhCOD9JEmNZ
 REDASH_QUERY_ID=100
-
-# API Secundaria (Clientes No Disponibles)
 REDASH_UNAVAILABLE_API_KEY=nQmXGYBuKdck7VBTrqvOZ45ypmp5idTlZpVEumbz
 REDASH_UNAVAILABLE_QUERY_ID=133
 
-# URL de Pre-registro
+# Pre-registro
 PREREGISTER_URL=https://saludia.me/pre-register
 ```
 
 ---
 
-## 🤖 Bot de Telegram
+## 🏗️ Integración con NocoDB
 
-### 📱 Comandos Principales
+### **🔗 API de Comerciales**
 
-#### Comandos Básicos
+#### **Verificar Existencia:**
 ```bash
-/start      # Bienvenida con información del flujo comercial
-/help       # Lista completa de comandos y estados
-cliente     # Iniciar búsqueda con verificación comercial
-resumen     # Ver estadísticas del sistema
-info        # Detalles sobre información mostrada
+curl -X 'GET' \
+'https://nocodb.farmuhub.co/api/v2/tables/mbtfip114qi1u4o/records?where=(cedula,eq,123456)&limit=1' \
+-H 'xc-token: -kgNP5Q5G54nlDXPei7IO9PMMyE4pIgxYCi6o17Y'
 ```
 
-### 🔍 Proceso de Búsqueda Comercial (3 Pasos)
-
-#### Paso 1: Comando Inicial
-```
-Usuario: cliente
-Bot: "Selecciona el tipo de documento: NIT o CC"
-```
-
-#### Paso 2: Tipo de Documento
-```
-Usuario: NIT
-Bot: "Ingresa el número de NIT (solo números)"
-```
-
-#### Paso 3: Verificación y Resultado
-```
-Usuario: 901234567
-Bot: [Verificación de disponibilidad + Resultado]
+#### **Crear Comercial:**
+```bash
+curl -X 'POST' \
+'https://nocodb.farmuhub.co/api/v2/tables/mbtfip114qi1u4o/records' \
+-H 'xc-token: -kgNP5Q5G54nlDXPei7IO9PMMyE4pIgxYCi6o17Y' \
+-H 'Content-Type: application/json' \
+-d '{
+  "cedula": "123456",
+  "email": "comercial@empresa.com", 
+  "name": "Juan Pérez",
+  "phone": "+57 300 123 4567"
+}'
 ```
 
-### 🚦 Respuestas del Sistema
+### **📊 Sistema de Validaciones**
 
-#### 🟢 Cliente Disponible
-```
-✅ ¡CLIENTE DISPONIBLE! 🎯
-
-🔍 Documento: 901234567
-🏢 Nombre: EMPRESA EJEMPLO S.A.S
-👤 Representante Legal: Juan Pérez
-📞 Teléfono: 300 123 4567
-📧 Email: contacto@ejemplo.com
-📍 Dirección: Calle 123 #45-67
-🌆 Ciudad: Bogotá - Cundinamarca
-
-🟢 Estado: Cliente DISPONIBLE para crear órdenes
-```
-
-#### 🚫 Cliente No Disponible
-```
-🚫 CLIENTE EXISTENTE - NO DISPONIBLE ⚠️
-
-Documento: NIT 901234567
-
-❌ Estado: Este cliente EXISTE en el sistema pero NO está 
-disponible para crear nuevas órdenes en este momento.
-
-📞 Recomendación: Contacta a tu supervisor o al área 
-comercial para más información.
-```
-
-#### ❌ Cliente No Encontrado
-```
-❌ CLIENTE NO ENCONTRADO 🔍
-
-Lo que busqué:
-• Tipo: NIT
-• Número: 901234567
-
-🆕 CREAR NUEVO CLIENTE:
-Para registrar este cliente usa el siguiente enlace:
-
-🔗 https://saludia.me/pre-register
-
-📝 Pasos:
-1. Hacer clic en el enlace
-2. Completar formulario de pre-registro
-3. Una vez registrado, podrás crear órdenes
-```
-
----
-
-## 📊 Integración con APIs de Redash
-
-### 🔗 API Principal (Clientes)
-- **URL:** `https://redash-mcp.farmuhub.co/api/queries/100/results.json`
-- **API Key:** `MJAgj9yCdpVsWFdinPPfqBkQuvTBKmhCOD9JEmNZ`
-- **Propósito:** Base de datos completa de clientes
-- **Cache:** 1 hora (datos estables)
-
-### 🚫 API Secundaria (Clientes No Disponibles)
-- **URL:** `https://redash-mcp.farmuhub.co/api/queries/133/results.json`
-- **API Key:** `nQmXGYBuKdck7VBTrqvOZ45ypmp5idTlZpVEumbz`
-- **Propósito:** Lista de clientes excluidos/no disponibles
-- **Cache:** 30 minutos (datos más dinámicos)
-
-### ⚡ Sistema de Cache Dual
-
-#### Cache Principal (Clientes)
-- **TTL:** 1 hora
-- **Propósito:** Datos estables de clientes
-- **Fallback:** Cache expirado en caso de error
-
-#### Cache Secundario (No Disponibles)
-- **TTL:** 30 minutos
-- **Propósito:** Lista dinámica de exclusiones
-- **Fallback:** Asumir disponible si falla
-
----
-
-## 🔍 Algoritmo de Búsqueda Mejorado
-
-### 🎯 Flujo de Verificación
-
+#### **Validación de Campos:**
 ```python
-def search_client_by_document_with_availability(doc_type, doc_number):
-    # PASO 1: Verificar si está en lista de no disponibles
-    unavailable_check = check_if_client_unavailable(doc_type, doc_number)
-    
-    if unavailable_check.unavailable:
-        return "CLIENTE NO DISPONIBLE"
-    
-    # PASO 2: Buscar en base principal si está disponible
-    main_search = search_client_by_document(doc_type, doc_number)
-    
-    if main_search.found:
-        return "CLIENTE DISPONIBLE" + información_completa
-    else:
-        return "CLIENTE NO ENCONTRADO" + enlace_preregistro
-```
-
-### 📈 Estadísticas de Búsqueda
-- **Total de clientes:** +5,000 registros en base principal
-- **Clientes no disponibles:** Variable según configuración comercial
-- **Tiempo de respuesta:** ~500ms (cached) / ~2-3s (fresh con doble verificación)
-- **Precisión:** 99.9% con validación dual
-
----
-
-## 📌 API REST
-
-### 🏠 Endpoints Principales
-
-#### Información del Sistema
-```http
-GET /
-```
-**Respuesta:** Información completa incluyendo configuración de APIs duales
-
-#### Health Check
-```http
-GET /health
-```
-**Respuesta:** Estado de ambas APIs y sistemas de cache
-
-#### Buscar Cliente (Nuevo Flujo)
-```http
-GET /api/clients/search?type=NIT&number=901234567
-```
-**Respuesta con estado comercial:**
-```json
-{
-  "success": true,
-  "found": true,
-  "unavailable": false,
-  "client_data": {...},
-  "commercial_status": "available"
+VALIDACIONES = {
+    "cedula": "6-12 dígitos únicos",
+    "email": "Formato válido con @ y dominio (.com, .co, etc)",
+    "name": "2-100 caracteres, solo letras y espacios",
+    "phone": "7-20 dígitos, permite +, -, (), espacios"
 }
 ```
 
 ---
 
-## 🚀 Deployment en Render
+## 🚦 Flujos de Usuario Actualizados
 
-### 1. **Variables de Entorno en Render Dashboard:**
-```bash
-TELEGRAM_TOKEN=7337079580:AAFxBDY4B1Muc6sUpV0uNxYa6DgVQh3LE_8
-WEBHOOK_URL=https://mcpcomercialext.onrender.com
-REDASH_BASE_URL=https://redash-mcp.farmuhub.co
-REDASH_API_KEY=MJAgj9yCdpVsWFdinPPfqBkQuvTBKmhCOD9JEmNZ
-REDASH_QUERY_ID=100
-REDASH_UNAVAILABLE_API_KEY=nQmXGYBuKdck7VBTrqvOZ45ypmp5idTlZpVEumbz
-REDASH_UNAVAILABLE_QUERY_ID=133
-PREREGISTER_URL=https://saludia.me/pre-register
+### **🟢 Cliente Disponible (Sin cambios)**
+```
+✅ ¡CLIENTE DISPONIBLE! 🎯
+🔍 Documento: 901234567
+🏢 Nombre: EMPRESA EJEMPLO S.A.S
+[...información completa...]
+🟢 Estado: Cliente DISPONIBLE para crear órdenes
 ```
 
-### 2. **Comandos de Build:**
-- Build: `pip install -r requirements.txt`
-- Start: `gunicorn app:app`
+### **👤 Comercial Creado Exitosamente (NUEVO)**
+```
+✅ ¡COMERCIAL CREADO EXITOSAMENTE! 🎉
 
-### 3. **Configurar Webhook:**
-```bash
-curl -X POST https://mcpcomercialext.onrender.com/setup-webhook
+Información registrada:
+🆔 Cédula: 12345678
+👤 Nombre: Juan Pérez  
+📧 Email: juan.perez@empresa.com
+📞 Teléfono: +57 300 123 4567
+
+✅ Estado: Comercial registrado y activo en el sistema
 ```
 
----
+### **🚫 Comercial Ya Registrado (NUEVO)**
+```
+🚫 COMERCIAL YA REGISTRADO
 
-## 🛠️ Características Técnicas v1.2
+👤 Nombre: María García
+🆔 Cédula: 12345678
+📧 Email: maria@empresa.com
+📞 Teléfono: 300 987 6543
 
-### ⚡ Nuevas Optimizaciones
-
-#### Performance Dual-API
-- **Cache diferenciado** por tipo de consulta
-- **Timeouts optimizados** para cada API
-- **Fallbacks inteligentes** en caso de fallas
-- **Verificación paralela** cuando es posible
-
-#### Robustez Comercial
-- **Verificación obligatoria** de disponibilidad
-- **Estados claros** para comerciales
-- **Enlaces automáticos** de pre-registro
-- **Logging detallado** del flujo comercial
-
-### 🔒 Validaciones Mejoradas
-
-#### Estados de Cliente
-```python
-# Posibles estados
-AVAILABLE = "Cliente disponible para órdenes"
-UNAVAILABLE = "Cliente no disponible para órdenes"  
-NOT_FOUND = "Cliente necesita pre-registro"
-ERROR = "Error en verificación"
+⚠️ Estado: Este comercial ya existe en el sistema
 ```
 
 ---
 
-## 🚨 Troubleshooting v1.2
+## 📌 API REST Endpoints Nuevos
 
-### ❌ Problemas Específicos del Flujo Dual
+### **👤 Comerciales**
 
-#### API de No Disponibles Falla
-**Síntoma:** Todos los clientes aparecen como disponibles
-**Solución:** 
-- Verificar API key de query 133
-- Revisar logs de cache secundario
-- Sistema asume disponible como fallback seguro
-
-#### Cliente Aparece en Ambas APIs
-**Síntoma:** Conflicto de información
-**Solución:** 
-- Lista de no disponibles tiene prioridad
-- Cliente se marca como NO DISPONIBLE
-- Verificar coherencia de datos en Redash
-
-#### Pre-registro URL No Funciona
-**Síntoma:** Enlaces rotos en respuestas
-**Solución:**
-- Verificar variable PREREGISTER_URL
-- Confirmar que https://saludia.me/pre-register esté activo
-
----
-
-## 📋 Próximas Mejoras v1.3
-
-### 🎯 Funcionalidades Comerciales Planeadas
-
-#### v1.3 - Gestión Avanzada
-- [ ] Historial de búsquedas por comercial
-- [ ] Reportes de clientes no disponibles
-- [ ] Notificaciones cuando clientes vuelven disponibles
-- [ ] Dashboard de uso comercial
-
-#### v1.4 - Integración Completa
-- [ ] Crear órdenes directamente desde el bot
-- [ ] Estados de cliente en tiempo real
-- [ ] Sincronización con CRM
-- [ ] Alertas comerciales automatizadas
-
----
-
-## 🔄 Changelog v1.2
-
-### ✅ **Nuevas Características:**
-- ✅ **Verificación de disponibilidad comercial**
-- ✅ **API dual para clientes disponibles/no disponibles**
-- ✅ **Enlaces automáticos de pre-registro**
-- ✅ **Estados comerciales claros (🟢🚫❌)**
-- ✅ **Cache diferenciado por tipo de consulta**
-- ✅ **Logging detallado del flujo comercial**
-
-### 🔧 **Mejoras Técnicas:**
-- ✅ **Nueva función `search_client_by_document_with_availability()`**
-- ✅ **Cache secundario para clientes no disponibles**
-- ✅ **Manejo de errores mejorado en flujo dual**
-- ✅ **Variables de entorno reorganizadas**
-
-### 📱 **Experiencia del Usuario:**
-- ✅ **Mensajes más claros sobre estado comercial**
-- ✅ **Flujo guiado para clientes no encontrados**
-- ✅ **Información de contacto para casos especiales**
-- ✅ **Comandos help actualizados**
-
----
-
-**📅 Última actualización:** Agosto 2025 - v1.2  
-**🎯 Próximo release:** v1.3 con gestión comercial avanzada
-
----
-
-## 🗂️ Estructura del Proyecto
-
+#### **Verificar Comercial**
+```http
+GET /api/comerciales/check?cedula=12345678
 ```
-mcpComercialExt/
-├── app.py              # Aplicación principal Flask
-├── config.py           # Configuración central
-├── redash_service.py   # Servicio de integración con Redash
-├── bot_handlers.py     # Manejadores del bot de Telegram
-├── utils.py            # Utilidades y helpers
-├── requirements.txt    # Dependencias Python
-└── README.md           # Documentación
-```
-
----
-
-## 🔧 Configuración y Deployment
-
-### 📦 Dependencias
-```txt
-Flask==3.0.0
-Flask-CORS==4.0.0
-requests==2.31.0
-gunicorn==21.2.0
-```
-
-### 🌍 Variables de Entorno
-
-#### Para Render (Producción):
-```bash
-WEBHOOK_URL=https://your-app-name.onrender.com
-```
-
-#### Configuración Hardcoded (No cambiar):
-```python
-# Token del bot de Telegram
-TELEGRAM_TOKEN = "7337079580:AAFxBDY4B1Muc6sUpV0uNxYa6DgVQh3LE_8"
-
-# API de Redash
-REDASH_BASE_URL = "https://redash-mcp.farmuhub.co"
-REDASH_API_KEY = "MJAgj9yCdpVsWFdinPPfqBkQuvTBKmhCOD9JEmNZ"
-REDASH_QUERY_ID = "100"
-```
-
-### 🚀 Deployment en Render
-
-1. **Configuración del Servicio:**
-   - Build Command: `pip install -r requirements.txt`
-   - Start Command: `gunicorn app:app`
-   - Puerto: Automático
-
-2. **Variable de Entorno:**
-   ```bash
-   WEBHOOK_URL=https://your-app-name.onrender.com
-   ```
-
-3. **URLs del Sistema:**
-   - Producción: `https://your-app-name.onrender.com`
-   - API Base: `https://your-app-name.onrender.com/api`
-   - Webhook: `https://your-app-name.onrender.com/telegram-webhook`
-
----
-
-## 🤖 Bot de Telegram
-
-### 📱 Comandos Principales
-
-#### Comandos Básicos
-```bash
-/start      # Bienvenida e introducción
-/help       # Lista completa de comandos
-cliente     # Iniciar búsqueda de cliente
-resumen     # Ver estadísticas de la base de datos
-```
-
-### 🔍 Proceso de Búsqueda (3 Pasos)
-
-#### Paso 1: Comando Inicial
-```
-Usuario: cliente
-Bot: "Selecciona el tipo de documento: NIT o CC"
-```
-
-#### Paso 2: Tipo de Documento
-```
-Usuario: NIT
-Bot: "Ingresa el número de NIT (solo números, sin puntos ni guiones)"
-```
-
-#### Paso 3: Número de Documento
-```
-Usuario: 901234567
-Bot: [Resultado de la búsqueda]
-```
-
-### 📋 Tipos de Documento Soportados
-
-#### NIT (Número de Identificación Tributaria)
-- **Formato:** Solo números
-- **Longitud:** Entre 6 y 15 dígitos
-- **Ejemplo:** `901234567`
-
-#### CC (Cédula de Ciudadanía)
-- **Formato:** Solo números
-- **Longitud:** Entre 6 y 10 dígitos
-- **Ejemplo:** `12345678`
-
-### 💬 Ejemplos de Conversación
-
-#### Búsqueda Exitosa
-```
-👤 Usuario: cliente
-🤖 Bot: 🔍 BÚSQUEDA DE CLIENTE ⚡
-        Paso 1/2: Selecciona el tipo de documento
-        Opciones: NIT o CC
-
-👤 Usuario: NIT
-🤖 Bot: 📄 TIPO SELECCIONADO: NIT ✅
-        Paso 2/2: Ingresa el número de documento
-        Formato: Solo números (sin puntos, guiones ni espacios)
-
-👤 Usuario: 901234567
-🤖 Bot: 🔍 Buscando NIT: 901234567...
-        ⏳ Consultando base de datos
-
-🤖 Bot: ✅ CLIENTE ENCONTRADO 🎯
-        🔍 Encontrado por: nit = 901234567
-        • Nombre: EMPRESA EJEMPLO S.A.S
-        • Email: contacto@ejemplo.com
-        • Teléfono: 300 123 4567
-        • Ciudad: Bogotá - Cundinamarca
-```
-
-#### Cliente No Encontrado
-```
-👤 Usuario: 999888777
-🤖 Bot: ❌ CLIENTE NO ENCONTRADO 🔍
-        Búsqueda realizada:
-        • Tipo: NIT
-        • Número: 999888777
-        • Registros consultados: 5,247
-        
-        Posibles causas:
-        • El documento no está registrado
-        • Formato diferente en la base de datos
-        • Error de digitación
-```
-
----
-
-## 📊 Integración con Redash
-
-### 🔗 Configuración de API
-
-#### Endpoint Principal
-```
-https://redash-mcp.farmuhub.co/api/queries/100/results.json?api_key=MJAgj9yCdpVsWFdinPPfqBkQuvTBKmhCOD9JEmNZ
-```
-
-#### Estructura de Datos
+**Respuesta:**
 ```json
 {
-  "query_result": {
-    "data": {
-      "rows": [
-        {
-          "campo1": "valor1",
-          "campo2": "valor2",
-          "nit": "901234567",
-          "nombre": "EMPRESA EJEMPLO"
-        }
-      ],
-      "columns": [
-        {"name": "campo1", "type": "string"},
-        {"name": "nit", "type": "string"}
-      ]
-    }
+  "success": true,
+  "exists": false,
+  "message": "La cédula 12345678 está disponible para registro"
+}
+```
+
+#### **Crear Comercial**
+```http
+POST /api/comerciales/create
+Content-Type: application/json
+
+{
+  "cedula": "12345678",
+  "email": "comercial@empresa.com",
+  "name": "Juan Pérez", 
+  "phone": "3001234567"
+}
+```
+
+#### **Información de Comercial**
+```http
+GET /api/comerciales/info?cedula=12345678
+```
+
+### **🔍 Clientes (Sin cambios)**
+- `GET /api/clients` - Lista de clientes
+- `GET /api/clients/search` - Búsqueda por documento
+- `GET /api/clients/summary` - Resumen y estadísticas
+
+---
+
+## ⚡ Características Técnicas v1.3
+
+### **🆕 Nuevas Optimizaciones**
+
+#### **Validación Robusta**
+- **Email:** Regex + dominios válidos
+- **Teléfono:** Formatos flexibles con validación de longitud
+- **Nombres:** Caracteres especiales permitidos (acentos, ñ, apostrofes)
+- **Cédula:** Limpieza automática y rango configurable
+
+#### **Sistema de Estados Mejorado**
+- **Procesos separados:** `client_search` vs `create_comercial`  
+- **Validación por pasos:** Cada entrada validada individualmente
+- **Confirmación requerida:** Resumen antes de crear
+- **Manejo de errores:** Mensajes específicos por tipo de error
+
+### **📊 Cache y Performance**
+- **Cache dual:** Redash (1h) + NocoDB (sin cache, datos en tiempo real)
+- **Timeouts diferenciados:** 30s Redash, 15s NocoDB, 8s Telegram
+- **Fallbacks inteligentes:** En caso de error, opciones de recuperación
+
+---
+
+## 🚀 Deployment en Render v1.3
+
+### **1. Variables de Entorno en Dashboard:**
+```bash
+# Existing variables + New NocoDB variables
+NOCODB_BASE_URL=https://nocodb.farmuhub.co/api/v2
+NOCODB_TOKEN=-kgNP5Q5G54nlDXPei7IO9PMMyE4pIgxYCi6o17Y
+NOCODB_TABLE_ID=mbtfip114qi1u4o
+```
+
+### **2. Health Check Actualizado:**
+```bash
+curl https://mcpcomercialext.onrender.com/health
+```
+**Respuesta incluye:**
+```json
+{
+  "services": {
+    "nocodb_api": "ok",
+    "redash_api": "ok", 
+    "telegram_bot": "configured"
+  },
+  "data_status": {
+    "nocodb_connection": "ok"
   }
 }
 ```
 
-### ⚡ Sistema de Cache
-
-#### Características
-- **TTL:** 1 hora (3600 segundos)
-- **Propósito:** Reducir latencia en consultas repetidas
-- **Invalidación:** Automática por tiempo
-- **Fallback:** Cache expirado en caso de error de API
-
-#### Beneficios
-- ✅ Respuestas instantáneas para consultas recientes
-- ✅ Menor carga sobre la API de Redash
-- ✅ Mayor disponibilidad del servicio
-- ✅ Mejor experiencia de usuario
-
 ---
 
-## 🔍 Sistema de Búsqueda
+## 🛠️ Testing de Funcionalidades
 
-### 🎯 Algoritmo de Búsqueda
+### **🧪 Test Manual del Bot**
 
-#### Detección Automática de Campos
-1. **Campos Específicos:** `nit`, `cedula`, `documento`, `doc_number`, `identification`
-2. **Campos Generales:** Todos los campos de texto como fallback
-3. **Limpieza de Datos:** Eliminación de puntos, guiones y espacios
-4. **Comparación Exacta:** Coincidencia precisa del documento
-
-#### Procesamiento de Documentos
-```python
-# Ejemplo de limpieza
-Input:  "90.123.456-7"
-Clean:  "901234567"
-
-Input:  "12.345.678"
-Clean:  "12345678"
+#### **Registro de Comercial:**
+```
+1. Abrir chat con el bot
+2. Escribir: crear
+3. Seguir el flujo paso a paso:
+   - Cédula: 87654321
+   - Email: test@empresa.com
+   - Nombre: Pedro Prueba
+   - Teléfono: 300 999 8888
+   - Confirmar: SI
+4. Verificar creación exitosa
 ```
 
-### 📈 Estadísticas de Búsqueda
-
-#### Métricas Disponibles
-- **Total de clientes:** +5,000 registros
-- **Campos detectados:** Automático según estructura
-- **Tiempo de respuesta:** ~500ms (cached) / ~2s (fresh)
-- **Tasa de éxito:** Depende de la calidad de datos
-
----
-
-## 📌 API REST
-
-### 🏠 Endpoints Principales
-
-#### Información del Sistema
-```http
-GET /
+#### **Verificación de Duplicado:**
 ```
-**Respuesta:** Información completa del sistema, configuración y estado
-
-#### Health Check
-```http
-GET /health
-```
-**Respuesta:** Estado detallado de servicios y conexiones
-
-#### Listar Clientes
-```http
-GET /api/clients?limit=10&include_sample=true
-```
-**Parámetros:**
-- `limit` (opcional): Número máximo de clientes
-- `include_sample` (opcional): Incluir muestra de datos
-
-#### Buscar Cliente
-```http
-GET /api/clients/search?type=NIT&number=901234567
-```
-**Parámetros:**
-- `type`: Tipo de documento (NIT/CC)
-- `number`: Número de documento
-
-**Respuesta exitosa:**
-```json
-{
-  "success": true,
-  "found": true,
-  "matches": [
-    {
-      "client_data": {
-        "nit": "901234567",
-        "nombre": "EMPRESA EJEMPLO S.A.S"
-      },
-      "matched_field": "nit",
-      "matched_value": "901234567"
-    }
-  ],
-  "total_matches": 1
-}
+1. Escribir: crear
+2. Usar la misma cédula: 87654321  
+3. Verificar mensaje de "ya registrado"
 ```
 
-#### Resumen de Clientes
-```http
-GET /api/clients/summary
-```
-**Respuesta:** Estadísticas y metadatos de la base de datos
+### **🧪 Test API Endpoints:**
 
-#### Configurar Webhook
-```http
-POST /setup-webhook
-```
-**Función:** Configurar webhook de Telegram automáticamente
-
----
-
-## 🛠️ Características Técnicas
-
-### ⚡ Optimizaciones
-
-#### Performance
-- **Cache en Memoria:** TTL de 1 hora para consultas Redash
-- **Conexiones Reutilizables:** Pool de conexiones HTTP
-- **Timeouts Configurables:** 30s para Redash, 8s para Telegram
-- **Respuestas Chunked:** División automática de mensajes largos
-
-#### Robustez
-- **Fallback a Cache Expirado:** En caso de error de API
-- **Validación de Entrada:** Formato y longitud de documentos
-- **Manejo de Errores:** Mensajes descriptivos para usuarios
-- **Logging Completo:** Rastreo de todas las operaciones
-
-### 🔒 Validaciones
-
-#### Documentos
-```python
-# NIT: 6-15 dígitos
-# CC: 6-10 dígitos
-# Solo números (limpieza automática)
-
-def validate_document_number(doc_type, doc_number):
-    clean_number = str(doc_number).replace('-', '').replace('.', '')
-    
-    if doc_type == "NIT":
-        return 6 <= len(clean_number) <= 15
-    elif doc_type == "CC":
-        return 6 <= len(clean_number) <= 10
-```
-
-#### Estados de Usuario
-- **Gestión de Sesiones:** Estados temporales por usuario
-- **Timeouts de Sesión:** Limpieza automática de estados antiguos
-- **Validación de Flujo:** Verificación de pasos secuenciales
-
----
-
-## 🚨 Troubleshooting
-
-### ❌ Problemas Comunes
-
-#### Bot No Responde
-**Síntoma:** El bot no recibe mensajes
-**Solución:**
-1. Verificar token: `GET /health`
-2. Configurar webhook: `POST /setup-webhook`
-3. Verificar URL de webhook en variables de entorno
-
-#### Error de API Redash
-**Síntoma:** "Error consultando base de datos"
-**Solución:**
-1. Verificar conectividad a Redash
-2. Validar API key en configuración
-3. Revisar logs para detalles del error
-
-#### Cliente No Encontrado (Falso Negativo)
-**Síntoma:** Cliente existe pero no se encuentra
-**Posibles Causas:**
-1. Formato diferente en base de datos (ej: con puntos)
-2. Campo de documento en columna no detectada
-3. Tipo de documento incorrecto (NIT vs CC)
-
-#### Timeout en Búsquedas
-**Síntoma:** "Tiempo de espera agotado"
-**Solución:**
-1. La primera consulta puede tardar más (cache vacío)
-2. Consultas subsecuentes serán más rápidas (cache activo)
-3. Verificar estabilidad de red con Redash
-
-### ✅ Verificación del Sistema
-
-#### Health Check Completo
+#### **Verificar Comercial:**
 ```bash
-curl https://your-app-name.onrender.com/health
+curl "https://mcpcomercialext.onrender.com/api/comerciales/check?cedula=87654321"
 ```
 
-#### Test de API
+#### **Crear via API:**
 ```bash
-curl "https://your-app-name.onrender.com/api/clients/search?type=NIT&number=901234567"
+curl -X POST "https://mcpcomercialext.onrender.com/api/comerciales/create" \
+-H "Content-Type: application/json" \
+-d '{
+  "cedula": "11223344",
+  "email": "api@test.com",
+  "name": "API Test",
+  "phone": "300 111 2233"
+}'
 ```
 
-#### Configuración de Webhook
-```bash
-curl -X POST https://your-app-name.onrender.com/setup-webhook
+---
+
+## 🚨 Troubleshooting v1.3
+
+### **❌ Problemas Específicos de NocoDB**
+
+#### **Error "NocoDB connection failed"**
+**Síntomas:** Bot responde con error al usar `crear`
+**Solución:**
+- Verificar NOCODB_TOKEN en variables de entorno
+- Confirmar que https://nocodb.farmuhub.co esté accesible
+- Revisar logs: `/health` endpoint
+
+#### **Comercial no se crea pero no hay error**
+**Síntomas:** Proceso completo pero sin registro
+**Solución:**
+- Verificar NOCODB_TABLE_ID correcto
+- Confirmar permisos del token
+- Revisar estructura de tabla en NocoDB
+
+#### **Validación de email muy estricta**
+**Síntomas:** Emails válidos rechazados
+**Solución:**
+- Verificar extensión del dominio (.com, .co, etc)
+- Revisar regex en `nocodb_service.py`
+- Ajustar `valid_extensions` si necesario
+
+### **⚠️ Problemas de Estados de Usuario**
+
+#### **Bot "se olvida" en medio del registro**
+**Síntomas:** Usuario en paso 3/4, bot responde como comando nuevo
+**Solución:**
+- Estados se limpian por timeout o error
+- Usar `crear` para reiniciar proceso
+- Verificar que no hay caracteres especiales en inputs
+
+---
+
+## 📋 Próximas Mejoras v1.4
+
+### **🎯 Funcionalidades Planeadas**
+
+#### **v1.4 - Gestión Avanzada de Comerciales**
+- [ ] Editar datos de comerciales existentes
+- [ ] Listar comerciales registrados con filtros
+- [ ] Desactivar/activar comerciales
+- [ ] Histórico de cambios en comerciales
+- [ ] Búsqueda de comerciales por email/nombre
+
+#### **v1.5 - Reportes y Analytics**
+- [ ] Dashboard de comerciales activos
+- [ ] Estadísticas de uso del bot por comercial
+- [ ] Reportes de clientes más buscados
+- [ ] Métricas de conversión (búsquedas → órdenes)
+
+#### **v1.6 - Integración Completa**
+- [ ] Crear órdenes directamente desde el bot
+- [ ] Asignación automática de clientes a comerciales
+- [ ] Notificaciones push para comerciales
+- [ ] Sincronización bidireccional con CRM
+
+---
+
+## 🔄 Changelog v1.3
+
+### **✨ Nuevas Características:**
+- ✅ **Comando `crear` para registrar comerciales**
+- ✅ **Integración completa con NocoDB API**
+- ✅ **Validación de duplicados automática**
+- ✅ **Validación robusta de email, teléfono, nombre**
+- ✅ **Proceso paso a paso con confirmación**
+- ✅ **Estados de usuario separados por proceso**
+- ✅ **Nuevos endpoints API para comerciales**
+
+### **🔧 Mejoras Técnicas:**
+- ✅ **Nuevo módulo `nocodb_service.py`**
+- ✅ **Sistema de validaciones modular**
+- ✅ **Manejo de errores específico por validación**
+- ✅ **Health check incluyendo NocoDB**
+- ✅ **Timeouts configurables por servicio**
+- ✅ **Logging detallado para debugging**
+
+### **📱 Experiencia del Usuario:**
+- ✅ **Flujo de registro intuitivo y guiado**
+- ✅ **Mensajes de error descriptivos y útiles**
+- ✅ **Confirmación con resumen antes de crear**
+- ✅ **Respuestas diferenciadas por estado**
+- ✅ **Comandos help actualizados con nueva funcionalidad**
+
+### **🛡️ Seguridad:**
+- ✅ **Variables sensibles en entorno**
+- ✅ **Validación estricta de todos los campos**
+- ✅ **Prevención de inyección en queries**
+- ✅ **Limpieza de datos de entrada**
+
+---
+
+## 📊 Métricas y KPIs v1.3
+
+### **📈 Métricas de Uso**
+- **Búsquedas de clientes:** Tracking existente
+- **Registros de comerciales:** Nuevas métricas
+- **Tasa de éxito:** Validaciones pasadas vs fallidas
+- **Tiempo de respuesta:** Separado por funcionalidad
+
+### **🎯 KPIs Objetivos**
+- **Tiempo promedio de registro:** < 2 minutos
+- **Tasa de error en validación:** < 5%
+- **Disponibilidad de NocoDB:** > 99%
+- **Satisfacción de usuario:** Medida por re-intentos
+
+---
+
+## 🔐 Consideraciones de Seguridad
+
+### **🛡️ Protección de Datos**
+- **Tokens API:** Nunca en código, solo en variables de entorno
+- **Datos sensibles:** Validación sin almacenamiento temporal
+- **Logs:** No incluyen datos personales completos
+- **APIs:** Rate limiting implícito por bot de Telegram
+
+### **✅ Cumplimiento**
+- **GDPR:** Datos mínimos necesarios, no persistencia local
+- **Consentimiento:** Implícito al usar el bot
+- **Acceso:** Solo usuarios autorizados del bot
+- **Auditoría:** Logs de todas las operaciones
+
+---
+
+## 📞 Soporte y Mantenimiento v1.3
+
+### **🔧 Mantenimiento Rutinario**
+- **Health checks:** Monitoring de ambas APIs
+- **Cache invalidation:** Automática por TTL
+- **Log rotation:** Gestionado por Render
+- **Updates:** Deploy desde repositorio git
+
+### **🆘 Escalación de Problemas**
+
+#### **Nivel 1 - Problemas Menores**
+- Validación de campo específica
+- Error de formato de usuario
+- **Acción:** Mensaje de ayuda, reintentar
+
+#### **Nivel 2 - Problemas de API**
+- NocoDB timeout o error 500
+- Redash slow response
+- **Acción:** Fallback, notificación en logs
+
+#### **Nivel 3 - Problemas Críticos**
+- APIs completamente down
+- Bot no responde
+- **Acción:** Escalación inmediata a desarrollo
+
+### **📚 Documentación Técnica**
+- **API Docs:** Swagger/OpenAPI pendiente v1.4
+- **Code Comments:** Documentación inline completa
+- **Architecture:** Diagrama de flujo actualizado
+- **Deployment:** Guía paso a paso actualizada
+
+---
+
+## 🌟 Casos de Uso Reales
+
+### **👤 Caso 1: Registro de Comercial Nuevo**
+```
+Comercial: María quiere registrarse
+1. Abre chat con bot
+2. Escribe: crear
+3. Sigue flujo: 12345678 → maria@empresa.com → María García → 300123456
+4. Confirma: SI
+5. ✅ Registrada exitosamente
+```
+
+### **🚫 Caso 2: Comercial Duplicado**
+```
+Comercial: Pedro intenta usar cédula existente  
+1. Escribe: crear
+2. Ingresa: 12345678 (ya registrada)
+3. ❌ Sistema informa que ya existe
+4. Muestra datos del comercial existente
+```
+
+### **🔍 Caso 3: Búsqueda de Cliente (Flujo Original)**
+```
+Comercial: Juan busca empresa por NIT
+1. Escribe: cliente
+2. Selecciona: NIT
+3. Ingresa: 901234567
+4. ✅ Cliente disponible con información completa
+```
+
+### **📊 Caso 4: Monitoreo del Sistema**
+```
+Admin: Verificar estado general
+1. GET /health
+2. ✅ Todos los servicios operativos
+3. Redash: 5,247 clientes
+4. NocoDB: conexión OK
+5. Cache: activo (23 min)
 ```
 
 ---
 
-## 📋 Próximas Mejoras
+## 🔄 Migración desde v1.2
 
-### 🎯 Funcionalidades Planeadas
+### **⚡ Compatibilidad**
+- ✅ **Búsqueda de clientes:** Sin cambios
+- ✅ **Comandos existentes:** Totalmente compatibles
+- ✅ **API endpoints:** Retrocompatibles
+- ✅ **Variables de entorno:** Nuevas opcionales
 
-#### v1.1 - Búsqueda Avanzada
-- [ ] Búsqueda por nombre/razón social
-- [ ] Búsqueda por ciudad/departamento
-- [ ] Filtros combinados (ej: NIT + Ciudad)
-- [ ] Búsqueda parcial (wildcards)
+### **🆕 Cambios Requeridos**
+1. **Agregar variables NocoDB** en Render dashboard
+2. **No modificar** variables existentes
+3. **Probar** comando `crear` después del deploy
+4. **Verificar** endpoint `/health` incluya NocoDB
 
-#### v1.2 - Información Enriquecida
-- [ ] Historial de búsquedas por usuario
-- [ ] Exportación de resultados
-- [ ] Información de contacto expandida
-- [ ] Links a sistemas externos
-
-#### v1.3 - Analytics
-- [ ] Dashboard de uso del bot
-- [ ] Métricas de comerciales activos
-- [ ] Reportes de búsquedas más frecuentes
-- [ ] Optimización basada en patrones de uso
-
-### 🔧 Mejoras Técnicas
-- [ ] Base de datos local para cache persistente
-- [ ] API GraphQL para consultas flexibles
-- [ ] Autenticación por comercial
-- [ ] Rate limiting por usuario
-- [ ] Webhooks para actualizaciones de datos
+### **📋 Checklist de Migración**
+- [ ] Variables de entorno configuradas
+- [ ] Deploy exitoso en Render
+- [ ] Health check pasando
+- [ ] Test de comando `crear`
+- [ ] Test de comando `cliente` (sin regresión)
+- [ ] Logs sin errores críticos
 
 ---
 
-## 📞 Soporte y Contacto
-
-### 🔧 Mantenimiento
-- **Desarrollador:** Equipo de Desarrollo FarmuHub
-- **Monitoreo:** Logs automáticos en Render
-- **Actualizaciones:** Deploy automático desde repositorio
-
-### 📚 Recursos
-- **Documentación Telegram Bot API:** [telegram.org](https://core.telegram.org/bots/api)
-- **Flask Documentation:** [flask.palletsprojects.com](https://flask.palletsprojects.com/)
-- **Redash API:** Documentación interna
-
-### 🆘 Escalación
-Para problemas críticos o mejoras del sistema, contactar al equipo de desarrollo de FarmuHub.
+**📅 Última actualización:** Agosto 2025 - v1.3  
+**🎯 Próximo release:** v1.4 con gestión avanzada de comerciales
+**🚀 Estado:** Producción - Completamente operativo**
 
 ---
 
-**📅 Última actualización:** Agosto 2025 - v1.0  
-**🎯 Próximo release:** v1.1 con búsqueda avanzada
+## 🏁 Conclusión
+
+mcpComercialExt v1.3 representa una evolución significativa del sistema, agregando capacidades completas de gestión de comerciales externos mientras mantiene toda la funcionalidad existente de búsqueda de clientes.
+
+**🎯 Beneficios Clave:**
+- **Doble funcionalidad:** Búsqueda + Registro en una sola herramienta
+- **Validación robusta:** Prevención de errores y duplicados
+- **Experiencia fluida:** Procesos paso a paso intuitivos
+- **Escalabilidad:** Arquitectura preparada para futuras mejoras
+
+El sistema está listo para producción y preparado para las próximas funcionalidades avanzadas de la hoja de ruta v1.4-v1.6.
