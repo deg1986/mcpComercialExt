@@ -2,6 +2,8 @@
 import requests
 import logging
 import re
+import json
+import urllib.parse
 from config import *
 
 logger = logging.getLogger(__name__)
@@ -114,7 +116,7 @@ def check_comercial_exists(cedula):
         
         clean_cedula = validation["cleaned_cedula"]
         
-        # Construir URL para consulta
+        # Construir URL para consulta - EXACTAMENTE como tu CURL
         url = f"{NOCODB_BASE_URL}/tables/{NOCODB_TABLE_ID}/records"
         params = {
             "where": f"(cedula,eq,{clean_cedula})",
@@ -128,43 +130,76 @@ def check_comercial_exists(cedula):
             "xc-token": NOCODB_TOKEN
         }
         
-        logger.info(f"📡 Making request to NocoDB: {url}")
+        logger.info(f"📡 Making GET request to: {url}")
+        logger.info(f"📋 Params: {params}")
+        logger.info(f"📋 Headers: {headers}")
+        
+        # Debug: Log equivalent curl command
+        import urllib.parse
+        query_string = urllib.parse.urlencode(params)
+        full_url = f"{url}?{query_string}"
+        curl_command = f"""
+Equivalent CURL:
+curl -X 'GET' '{full_url}' \\
+  -H 'accept: application/json' \\
+  -H 'xc-token: {NOCODB_TOKEN}'
+"""
+        logger.info(curl_command)
+        
         response = requests.get(url, params=params, headers=headers, timeout=NOCODB_TIMEOUT)
         
-        logger.info(f"📡 NocoDB Response: {response.status_code}")
+        logger.info(f"📡 NocoDB Response Status: {response.status_code}")
+        logger.info(f"📡 NocoDB Response Headers: {dict(response.headers)}")
+        logger.info(f"📡 NocoDB Response Body: {response.text}")
         
         if response.status_code != 200:
             logger.error(f"❌ NocoDB HTTP Error: {response.status_code} - {response.text}")
             return {"success": False, "error": f"Error consultando base de datos: HTTP {response.status_code}"}
         
-        data = response.json()
-        page_info = data.get("pageInfo", {})
-        total_rows = page_info.get("totalRows", 0)
-        
-        logger.info(f"📊 Query result: totalRows = {total_rows}")
-        
-        if total_rows > 0:
-            # Comercial ya existe
-            existing_records = data.get("list", [])
-            existing_comercial = existing_records[0] if existing_records else {}
+        try:
+            data = response.json()
+            page_info = data.get("pageInfo", {})
+            total_rows = page_info.get("totalRows", 0)
             
-            logger.info(f"👤 Comercial already exists: {clean_cedula}")
-            return {
-                "success": True, 
-                "exists": True,
-                "comercial_data": existing_comercial,
-                "message": f"El comercial con cédula {clean_cedula} ya está registrado en el sistema"
-            }
-        else:
-            logger.info(f"✅ Comercial does not exist: {clean_cedula}")
-            return {
-                "success": True, 
-                "exists": False,
-                "message": f"La cédula {clean_cedula} está disponible para registro"
-            }
+            logger.info(f"📊 Query result: totalRows = {total_rows}")
+            
+            if total_rows > 0:
+                # Comercial ya existe
+                existing_records = data.get("list", [])
+                existing_comercial = existing_records[0] if existing_records else {}
+                
+                logger.info(f"👤 Comercial already exists: {clean_cedula}")
+                logger.info(f"👤 Existing data: {existing_comercial}")
+                
+                return {
+                    "success": True, 
+                    "exists": True,
+                    "comercial_data": existing_comercial,
+                    "message": f"El comercial con cédula {clean_cedula} ya está registrado en el sistema"
+                }
+            else:
+                logger.info(f"✅ Comercial does not exist: {clean_cedula}")
+                return {
+                    "success": True, 
+                    "exists": False,
+                    "message": f"La cédula {clean_cedula} está disponible para registro"
+                }
+        
+        except json.JSONDecodeError as je:
+            logger.error(f"❌ Invalid JSON response: {je}")
+            logger.error(f"❌ Response text: {response.text}")
+            return {"success": False, "error": f"Respuesta inválida del servidor: {je}"}
+        
+    except requests.exceptions.Timeout:
+        logger.error(f"❌ Timeout checking comercial existence")
+        return {"success": False, "error": "Timeout al verificar comercial. Intenta nuevamente."}
+    
+    except requests.exceptions.ConnectionError:
+        logger.error(f"❌ Connection error checking comercial existence")
+        return {"success": False, "error": "Error de conexión con NocoDB. Verifica la conectividad."}
         
     except Exception as e:
-        logger.error(f"❌ Error checking comercial existence: {e}")
+        logger.error(f"❌ Unexpected error checking comercial existence: {e}")
         return {"success": False, "error": f"Error verificando comercial: {str(e)}"}
 
 def create_comercial(cedula, email, name, phone):
@@ -207,7 +242,7 @@ def create_comercial(cedula, email, name, phone):
         if exists_check["exists"]:
             return {"success": False, "error": exists_check["message"]}
         
-        # Construir request para creación
+        # Construir request para creación - EXACTAMENTE como tu CURL
         url = f"{NOCODB_BASE_URL}/tables/{NOCODB_TABLE_ID}/records"
         
         headers = {
@@ -218,38 +253,87 @@ def create_comercial(cedula, email, name, phone):
         
         payload = clean_data
         
-        logger.info(f"📡 Making POST request to NocoDB: {url}")
-        logger.info(f"📋 Payload: {payload}")
+        logger.info(f"📡 Making POST request to: {url}")
+        logger.info(f"📋 Headers: {headers}")
+        logger.info(f"📦 Payload: {payload}")
+        
+        # Debug: Log equivalent curl command
+        import json
+        curl_command = f"""
+Equivalent CURL:
+curl -X 'POST' '{url}' \\
+  -H 'accept: application/json' \\
+  -H 'xc-token: {NOCODB_TOKEN}' \\
+  -H 'Content-Type: application/json' \\
+  -d '{json.dumps(payload)}'
+"""
+        logger.info(curl_command)
         
         response = requests.post(url, json=payload, headers=headers, timeout=NOCODB_TIMEOUT)
         
-        logger.info(f"📡 NocoDB Response: {response.status_code}")
+        logger.info(f"📡 NocoDB Response Status: {response.status_code}")
+        logger.info(f"📡 NocoDB Response Headers: {dict(response.headers)}")
+        logger.info(f"📡 NocoDB Response Body: {response.text}")
         
         if response.status_code in [200, 201]:
-            created_comercial = response.json()
-            logger.info(f"✅ Comercial created successfully: {clean_data['cedula']}")
+            try:
+                created_comercial = response.json()
+                logger.info(f"✅ Comercial created successfully: {clean_data['cedula']}")
+                
+                return {
+                    "success": True,
+                    "comercial_data": created_comercial,
+                    "message": f"Comercial {clean_data['name']} creado exitosamente",
+                    "details": {
+                        "cedula": clean_data["cedula"],
+                        "email": clean_data["email"],
+                        "name": clean_data["name"],
+                        "phone": clean_data["phone"]
+                    }
+                }
+            except json.JSONDecodeError as je:
+                logger.warning(f"⚠️ Response is not valid JSON: {je}")
+                # Si la respuesta no es JSON válido, pero el status es 200/201, asumir éxito
+                return {
+                    "success": True,
+                    "comercial_data": {"status": "created"},
+                    "message": f"Comercial {clean_data['name']} creado exitosamente",
+                    "details": clean_data,
+                    "note": "Response was not JSON but creation appears successful"
+                }
+        else:
+            logger.error(f"❌ NocoDB Create Error: {response.status_code}")
+            logger.error(f"❌ Error details: {response.text}")
+            
+            # Intentar parsear el error
+            try:
+                error_data = response.json()
+                error_message = error_data.get('message', response.text)
+            except:
+                error_message = response.text
             
             return {
-                "success": True,
-                "comercial_data": created_comercial,
-                "message": f"Comercial {clean_data['name']} creado exitosamente",
+                "success": False, 
+                "error": f"Error creando comercial (HTTP {response.status_code}): {error_message}",
                 "details": {
-                    "cedula": clean_data["cedula"],
-                    "email": clean_data["email"],
-                    "name": clean_data["name"],
-                    "phone": clean_data["phone"]
+                    "status_code": response.status_code,
+                    "response_body": response.text,
+                    "url": url,
+                    "payload": payload
                 }
             }
-        else:
-            logger.error(f"❌ NocoDB Create Error: {response.status_code} - {response.text}")
-            return {
-                "success": False, 
-                "error": f"Error creando comercial: HTTP {response.status_code}\n{response.text}"
-            }
+        
+    except requests.exceptions.Timeout:
+        logger.error(f"❌ Timeout error creating comercial")
+        return {"success": False, "error": "Timeout al crear comercial. Intenta nuevamente."}
+    
+    except requests.exceptions.ConnectionError:
+        logger.error(f"❌ Connection error creating comercial")
+        return {"success": False, "error": "Error de conexión con NocoDB. Verifica la conectividad."}
         
     except Exception as e:
-        logger.error(f"❌ Error creating comercial: {e}")
-        return {"success": False, "error": f"Error creando comercial: {str(e)}"}
+        logger.error(f"❌ Unexpected error creating comercial: {e}")
+        return {"success": False, "error": f"Error inesperado creando comercial: {str(e)}"}
 
 def get_comercial_info(cedula):
     """Obtener información detallada de un comercial"""
