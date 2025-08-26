@@ -45,7 +45,7 @@ required_vars = {
 missing_vars = [var_name for var_name, var_value in required_vars.items() if not var_value]
 
 if missing_vars:
-    print("❌ ERROR: Variables de entorno faltantes:")
+    print("❌ WARNING: Variables de entorno faltantes (la app puede no funcionar correctamente):")
     for var in missing_vars:
         print(f"   - {var}")
     print("\n💡 Configura estas variables en tu entorno o archivo .env")
