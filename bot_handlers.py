@@ -61,7 +61,7 @@ def setup_telegram_routes(app):
             elif text_lower in ['/resumen', 'resumen', 'estadisticas', 'stats']:
                 handle_stats_command(chat_id)
             elif text_lower in ['/info', 'info', 'detalle', 'detalles']:
-                send_telegram_message(chat_id, """ℹ️ **INFORMACIÓN DETALLADA** 📋
+                send_telegram_message(chat_id, """ℹ️ **INFORMACIÓN DETALLADA**
 
 Para obtener información completa de un cliente:
 1. Usa `cliente` para buscar
