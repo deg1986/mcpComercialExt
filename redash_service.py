@@ -578,15 +578,45 @@ def format_client_info(client_data, matched_field=None):
                 email_found = True
                 break
         
-        # 5. DIRECCIÓN - Campo específico solicitado
+        # 5. DIRECCIÓN - Campo específico solicitado con enlace a Google Maps
         address_found = False
         for address_field in ['address', 'direccion', 'domicilio', 'ubicacion', 'street_address']:
             if address_field in client_data and client_data[address_field]:
-                # Truncar dirección si es muy larga
                 address_value = str(client_data[address_field])
-                if len(address_value) > 100:
-                    address_value = address_value[:100] + "..."
-                formatted_info.append(f"📍 Dirección: {address_value}")
+                
+                # Obtener ciudad y departamento para mejorar la búsqueda
+                city_info = ""
+                for city_field in ['ciudad', 'city', 'municipio', 'locality']:
+                    if city_field in client_data and client_data[city_field]:
+                        city_info = str(client_data[city_field])
+                        break
+                
+                state_info = ""
+                for state_field in ['departamento', 'estado', 'state', 'region']:
+                    if state_field in client_data and client_data[state_field]:
+                        state_info = str(client_data[state_field])
+                        break
+                
+                # Construir dirección completa para Google Maps
+                full_address = address_value
+                if city_info:
+                    full_address += f", {city_info}"
+                if state_info:
+                    full_address += f", {state_info}"
+                full_address += ", Colombia"
+                
+                # Crear enlace de Google Maps
+                import urllib.parse
+                encoded_address = urllib.parse.quote_plus(full_address)
+                google_maps_url = f"https://maps.google.com/maps?q={encoded_address}"
+                
+                # Truncar dirección si es muy larga para mostrar
+                display_address = address_value
+                if len(display_address) > 80:
+                    display_address = display_address[:80] + "..."
+                
+                # Formato: [texto](enlace) para Markdown
+                formatted_info.append(f"📍 Dirección: [{display_address}]({google_maps_url})")
                 address_found = True
                 break
         
