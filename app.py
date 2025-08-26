@@ -38,7 +38,7 @@ def home():
         "description": "Sistema de búsqueda de clientes para comerciales externos via Telegram + Gestión de Comerciales",
         "features": [
             "Búsqueda de clientes por NIT y CC",
-            "Integración con Redash API",
+            "Integración con Redash API", 
             "Registro de comerciales con NocoDB",
             "Cache inteligente",
             "Validación automática de documentos",
@@ -52,16 +52,27 @@ def home():
             "ttl_seconds": clients_cache["ttl"],
             "last_update": datetime.fromtimestamp(clients_cache["timestamp"]).isoformat() if clients_cache["timestamp"] > 0 else "never"
         },
+        "telegram_bot": {
+            "enabled": bool(TELEGRAM_TOKEN),
+            "token_valid": validate_telegram_token() if TELEGRAM_TOKEN else False,
+            "webhook_configured": bot_configured,
+            "webhook_url": f"{WEBHOOK_URL}/telegram-webhook" if TELEGRAM_TOKEN and WEBHOOK_URL else None
+        },
+        "redash_integration": {
+            "base_url": REDASH_BASE_URL or "not_configured",
+            "query_id": REDASH_QUERY_ID or "not_configured", 
+            "api_configured": bool(REDASH_API_KEY)
+        },
         "nocodb_integration": {
-            "base_url": NOCODB_BASE_URL,
-            "table_id": NOCODB_TABLE_ID,
+            "base_url": NOCODB_BASE_URL or "not_configured",
+            "table_id": NOCODB_TABLE_ID or "not_configured",
             "api_configured": bool(NOCODB_TOKEN),
             "timeout": NOCODB_TIMEOUT
         },
         "api_endpoints": {
             "clients": {
                 "/api/clients": "Lista de clientes desde Redash",
-                "/api/clients/search": "Búsqueda por documento",
+                "/api/clients/search": "Búsqueda por documento", 
                 "/api/clients/summary": "Resumen y estadísticas"
             },
             "comerciales": {
@@ -82,7 +93,7 @@ def home():
             }
         },
         "comercial_validation": {
-            "cedula": f"Entre {MIN_CEDULA_LENGTH} y {MAX_CEDULA_LENGTH} dígitos",
+            "cedula": f"Entre {MIN_CEDULA_LENGTH} y {MAX_CEDULA_LENGTH} dígitos", 
             "name": f"Entre {MIN_NAME_LENGTH} y {MAX_NAME_LENGTH} caracteres",
             "phone": f"Entre {MIN_PHONE_LENGTH} y {MAX_PHONE_LENGTH} dígitos",
             "email": "Formato válido con @ y dominio"
@@ -101,16 +112,19 @@ def health():
     # Test NocoDB connection
     nocodb_test = {"success": True, "error": None}
     try:
-        test_check = check_comercial_exists("999999999")  # Cédula de test
-        if not test_check.get("success"):
-            nocodb_test = {"success": False, "error": test_check.get("error")}
+        if NOCODB_TOKEN:
+            test_check = check_comercial_exists("999999999")  # Cédula de test
+            if not test_check.get("success"):
+                nocodb_test = {"success": False, "error": test_check.get("error")}
+        else:
+            nocodb_test = {"success": False, "error": "NOCODB_TOKEN not configured"}
     except Exception as e:
         nocodb_test = {"success": False, "error": str(e)}
     
     response_time = time.time() - start_time
     
     # Test Telegram token
-    telegram_valid = validate_telegram_token()
+    telegram_valid = validate_telegram_token() if TELEGRAM_TOKEN else False
     
     return jsonify({
         "status": "healthy",
@@ -262,7 +276,7 @@ def api_create_comercial():
                 "required_fields": required_fields,
                 "example": {
                     "cedula": "12345678",
-                    "email": "comercial@empresa.com", 
+                    "email": "comercial@empresa.com",
                     "name": "Juan Pérez",
                     "phone": "3001234567"
                 }
@@ -315,6 +329,13 @@ def setup_webhook_endpoint():
     global bot_configured
     
     try:
+        if not TELEGRAM_TOKEN:
+            return jsonify({
+                "success": False,
+                "error": "TELEGRAM_TOKEN no configurado",
+                "token_provided": False
+            }), 400
+        
         if not validate_telegram_token():
             return jsonify({
                 "success": False,
@@ -351,32 +372,33 @@ if __name__ == '__main__':
     
     # Validar configuración crítica
     if not TELEGRAM_TOKEN:
-        logger.error("❌ TELEGRAM_TOKEN not configured")
+        logger.warning("⚠️ TELEGRAM_TOKEN not configured")
     elif not validate_telegram_token():
-        logger.error("❌ Invalid TELEGRAM_TOKEN")
+        logger.warning("⚠️ Invalid TELEGRAM_TOKEN")
     else:
         logger.info("✅ Telegram token validated")
     
     if not REDASH_API_KEY:
-        logger.error("❌ REDASH_API_KEY not configured")
+        logger.warning("⚠️ REDASH_API_KEY not configured")
     else:
         logger.info("✅ Redash API key configured")
     
     if not NOCODB_TOKEN:
-        logger.error("❌ NOCODB_TOKEN not configured")
+        logger.warning("⚠️ NOCODB_TOKEN not configured")
     else:
         logger.info("✅ NocoDB token configured")
     
     # Test NocoDB connection
-    try:
-        logger.info("🔗 Testing NocoDB connection...")
-        test_result = check_comercial_exists("999999999")  # Cédula de test
-        if test_result.get("success"):
-            logger.info("✅ NocoDB connection successful")
-        else:
-            logger.warning(f"⚠️ NocoDB connection issue: {test_result.get('error')}")
-    except Exception as e:
-        logger.warning(f"⚠️ NocoDB connection test failed: {e}")
+    if NOCODB_TOKEN:
+        try:
+            logger.info("🔗 Testing NocoDB connection...")
+            test_result = check_comercial_exists("999999999")  # Cédula de test
+            if test_result.get("success"):
+                logger.info("✅ NocoDB connection successful")
+            else:
+                logger.warning(f"⚠️ NocoDB connection issue: {test_result.get('error')}")
+        except Exception as e:
+            logger.warning(f"⚠️ NocoDB connection test failed: {e}")
     
     # Configurar webhook si es posible
     if TELEGRAM_TOKEN and validate_telegram_token():
@@ -405,13 +427,3 @@ if __name__ == '__main__':
     logger.info("👤 Ready for comercial registration via Telegram bot")
     
     app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
-        "telegram_bot": {
-            "enabled": bool(TELEGRAM_TOKEN),
-            "token_valid": validate_telegram_token(),
-            "webhook_configured": bot_configured,
-            "webhook_url": f"{WEBHOOK_URL}/telegram-webhook" if TELEGRAM_TOKEN else None
-        },
-        "redash_integration": {
-            "base_url": REDASH_BASE_URL,
-            "query_id": REDASH_QUERY_ID,
-            "api_configured": bool(REDASH_API_KEY)
