@@ -1,728 +1,1252 @@
-# 🏢 nocodb_service.py - Servicio de Comerciales NocoDB v1.0
-import requests
+def handle_start_command(chat_id):
+    """Comando /start - Bienvenida"""
+    logger.info(f"Start command from chat {chat_id}")
+    
+    text = """🎯 **BUSCADOR DE CLIENTES COMERCIALES** ⚡
+
+🔹 Te ayudo a buscar clientes y verificar su **disponibilidad comercial** para crear órdenes.
+🔹 También puedo **registrar nuevos comerciales** en el sistema.
+🔹 Y puedo **asignar órdenes** a comerciales externos.
+
+**📋 ¿Qué puedo hacer?**
+• cliente - Buscar cliente y verificar disponibilidad
+• crear - Registrar nuevo comercial externo
+• orden - Asignar orden a comercial externo
+• resumen - Ver información del sistema
+• info - Ver qué datos obtienes
+• help - Ver todos los comandos
+
+**🔍 Puedo buscar por:**
+• NIT - Número de Identificación Tributaria  
+• CC - Cédula de Ciudadanía
+
+**🚦 Estados de cliente:**
+• 🟢 **DISPONIBLE** - Puede crear órdenes
+• 🚫 **NO DISPONIBLE** - Existe pero no puede crear órdenes
+• ❌ **NO ENCONTRADO** - Necesita pre-registro
+
+**👤 Para comerciales nuevos:**
+• crear - Registrar comercial con cédula, email, nombre y teléfono
+• Validación automática de duplicados
+• Formatos de email y teléfono validados
+
+**📦 Para asignación de órdenes:**
+• orden - Asignar orden a comercial existente
+• Verificación de comercial y orden
+• Formato automático MP-XXXXX
+
+**📊 Información que obtienes:**
+• 🏢 Nombre/Razón social
+• 👤 Representante legal
+• 📞 Teléfono de contacto
+• 📧 Email corporativo
+• 📍 Dirección completa
+• 🌆 Ciudad y departamento
+
+**💡 ¿Cómo funciona?**
+1. Escribe: cliente (buscar) | crear (registrar) | orden (asignar)
+2. Sigue las instrucciones paso a paso
+3. ¡Te muestro el resultado!
+
+🚀 **¡Empecemos a trabajar!**"""
+    
+    send_telegram_message(chat_id, text, parse_mode='Markdown')
+
+def handle_help_command(chat_id):
+    """Comando /help - Ayuda"""
+    text = """📋 COMANDOS DISPONIBLES
+
+**🔍 Buscar Clientes:**
+• cliente - Empezar búsqueda con verificación comercial
+• NIT - Para empresas
+• CC - Para personas
+
+**👤 Gestión de Comerciales:**
+• crear - Registrar nuevo comercial externo
+• Proceso guiado paso a paso
+• Validación automática de datos
+
+**📦 Asignación de Órdenes:**
+• orden - Asignar orden a comercial externo
+• Verificación de comercial existente
+• Verificación de orden válida
+• Formato automático MP-XXXXX
+
+**📊 Información:**
+• resumen - Ver datos del sistema
+• info - Detalles sobre qué información se muestra
+• help - Mostrar esta ayuda
+• start - Volver al inicio
+
+**🔍 Proceso de búsqueda:**
+1. Empezar: Escribe 'cliente'
+2. Tipo: Selecciona 'NIT' o 'CC'
+3. Número: Escribe el documento (solo números)
+4. Resultado: Te muestro el estado comercial e información
+
+**👤 Proceso de registro:**
+1. Empezar: Escribe 'crear'
+2. Cédula: Ingresa cédula del comercial
+3. Email: Proporciona email válido
+4. Nombre: Ingresa nombre completo
+5. Teléfono: Proporciona número de contacto
+6. Confirmación: Te confirmo el registro
+
+**📦 Proceso de asignación de órdenes:**
+1. Empezar: Escribe 'orden'
+2. Cédula: Ingresa cédula del comercial
+3. Orden: Proporciona número de orden
+4. Confirmación: Te confirmo la asignación
+
+**🚦 Estados de cliente:**
+• 🟢 DISPONIBLE - Cliente puede crear órdenes
+• 🚫 NO DISPONIBLE - Cliente existe pero no puede crear órdenes
+• ❌ NO ENCONTRADO - Necesita pre-registro
+
+**📋 Datos del comercial requeridos:**
+• Cédula: 6-12 dígitos únicos
+• Email: Formato válido (@dominio.com/co/etc)
+• Nombre: 2-100 caracteres
+• Teléfono: 7-20 dígitos
+
+**📦 Formatos de orden aceptados:**
+• mp-0003 → MP-0003
+• MP-0003 → MP-0003
+• Mp-003 → MP-003
+• 0003 → MP-0003
+
+**✅ Validaciones automáticas:**
+• Verificación de comercial existente
+• Verificación de orden válida
+• Formato de email válido
+• Normalización de números de orden
+• Longitud de campos apropiada
+
+**📞 Para clientes nuevos:**
+Si no encuentras un cliente, te daré el enlace de pre-registro para crearlo.
+
+**⚡ Características comerciales:**
+• Verificación de disponibilidad para órdenes
+• Información completa del cliente
+• Enlaces de pre-registro automáticos
+• Estados comerciales claros
+• Registro de comerciales seguros
+• Asignación de órdenes automatizada
+• Disponible 24/7"""
+    
+    send_telegram_message(chat_id, text, parse_mode='Markdown')
+
+def handle_order_assignment_start(chat_id, user_id):
+    """Iniciar proceso de asignación de orden"""
+    logger.info(f"Order assignment start from chat {chat_id}")
+    
+    # Establecer estado de usuario
+    user_states[user_id] = {
+        'step': 'comercial_cedula',
+        'process': 'order_assignment',
+        'chat_id': chat_id,
+        'data': {}
+    }
+    
+    text = """📦 **ASIGNAR ORDEN A COMERCIAL** ⚡
+
+**¡Vamos a asignar una orden a un comercial externo!**
+
+**Paso 1/3:** Ingresa la cédula del comercial
+
+**🔍 Formato requerido:**
+• Solo números (sin puntos, guiones ni espacios)
+• Entre 6 y 12 dígitos
+• Debe ser un comercial ya registrado
+• Ejemplo: 12345678
+
+**💡 Instrucciones:**
+• El sistema verificará que el comercial exista
+• Si no existe, deberás registrarlo primero con 'crear'
+• Si existe, continuaremos con la orden
+
+📝 **Ingresa la cédula del comercial:**"""
+    
+    send_telegram_message(chat_id, text, parse_mode='Markdown')# bot_handlers.py - Manejadores del Bot Telegram v1.3 - CLEAN VERSION + CREAR COMERCIAL
 import logging
-import re
-import json
-import urllib.parse
+from flask import request
 from config import *
+from redash_service import search_client_by_document_with_availability, get_clients_summary, validate_document_number, format_client_info
+from nocodb_service import (check_comercial_exists, create_comercial, validate_email_format, 
+                          validate_cedula_format, validate_name_format, validate_phone_format, 
+                          format_comercial_info, validate_order_number_format, get_comercial_by_cedula,
+                          check_order_exists, process_order_assignment)
+from utils import send_telegram_message
 
 logger = logging.getLogger(__name__)
 
-def validate_email_format(email):
-    """Validar formato de email con regex mejorado"""
-    try:
-        if not email or not isinstance(email, str):
-            return {"valid": False, "error": "Email requerido"}
-        
-        email = email.strip().lower()
-        
-        # Regex para validar formato básico de email
-        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-        
-        if not re.match(email_pattern, email):
-            return {"valid": False, "error": "Formato de email inválido"}
-        
-        # Validar dominios comunes
-        valid_extensions = ['.com', '.co', '.net', '.org', '.edu', '.gov', '.mil']
-        if not any(email.endswith(ext) for ext in valid_extensions):
-            return {"valid": False, "error": "Extensión de email no válida (debe terminar en .com, .co, .net, etc.)"}
-        
-        return {"valid": True, "cleaned_email": email}
-        
-    except Exception as e:
-        logger.error(f"❌ Error validating email: {e}")
-        return {"valid": False, "error": f"Error validando email: {str(e)}"}
+# Variables globales para estados de usuario
+user_states = {}
 
-def validate_cedula_format(cedula):
-    """Validar formato de cédula para comercial"""
-    try:
-        if not cedula:
-            return {"valid": False, "error": "Cédula requerida"}
-        
-        # Limpiar cédula
-        clean_cedula = str(cedula).strip().replace('-', '').replace('.', '').replace(' ', '')
-        
-        # Validar que solo contenga números
-        if not clean_cedula.isdigit():
-            return {"valid": False, "error": "La cédula debe contener solo números"}
-        
-        # Validar longitud
-        if len(clean_cedula) < MIN_CEDULA_LENGTH or len(clean_cedula) > MAX_CEDULA_LENGTH:
-            return {"valid": False, "error": f"La cédula debe tener entre {MIN_CEDULA_LENGTH} y {MAX_CEDULA_LENGTH} dígitos"}
-        
-        return {"valid": True, "cleaned_cedula": clean_cedula}
-        
-    except Exception as e:
-        return {"valid": False, "error": f"Error validando cédula: {str(e)}"}
+def setup_telegram_routes(app):
+    """Configurar rutas del bot de Telegram"""
+    
+    @app.route('/telegram-webhook', methods=['POST'])
+    def telegram_webhook():
+        """Webhook para recibir mensajes de Telegram"""
+        try:
+            update_data = request.get_json()
+            
+            if not update_data or 'message' not in update_data:
+                return "OK", 200
+            
+            message = update_data['message']
+            chat_id = message['chat']['id']
+            user_id = message['from']['id']
+            
+            if 'text' not in message:
+                return "OK", 200
+            
+            text = message['text'].strip()
+            text_lower = text.lower()
+            
+            # Router de comandos
+            if text in ['/start', 'start', 'inicio', 'hola']:
+                handle_start_command(chat_id)
+            elif text in ['/help', 'help', 'ayuda']:
+                handle_help_command(chat_id)
+            elif text_lower in ['/cliente', 'cliente', 'buscar', 'search']:
+                handle_client_search_start(chat_id, user_id)
+            elif text_lower in ['/crear', 'crear', 'nuevo', 'registrar']:
+                handle_create_comercial_start(chat_id, user_id)
+            elif text_lower in ['/orden', 'orden', 'asignar', 'assignment']:
+                handle_order_assignment_start(chat_id, user_id)
+            elif text_lower in ['/resumen', 'resumen', 'estadisticas', 'stats']:
+                handle_stats_command(chat_id)
+            elif text_lower in ['/info', 'info', 'detalle', 'detalles']:
+                handle_info_command(chat_id)
+            elif text_lower in ['nit', 'cc'] and user_id in user_states and user_states[user_id].get('process') == 'client_search':
+                handle_document_type_selection(chat_id, user_id, text.upper())
+            else:
+                # Manejar estados de conversación
+                if user_id in user_states:
+                    handle_conversation_state(chat_id, user_id, text)
+                else:
+                    handle_unknown_command(chat_id, text)
+            
+            return "OK", 200
+            
+        except Exception as e:
+            logger.error(f"Webhook error: {e}")
+            return "Handled with error", 200
 
-def validate_name_format(name):
-    """Validar formato de nombre"""
-    try:
-        if not name or not isinstance(name, str):
-            return {"valid": False, "error": "Nombre requerido"}
-        
-        name = name.strip()
-        
-        # Validar longitud
-        if len(name) < MIN_NAME_LENGTH:
-            return {"valid": False, "error": f"El nombre debe tener al menos {MIN_NAME_LENGTH} caracteres"}
-        
-        if len(name) > MAX_NAME_LENGTH:
-            return {"valid": False, "error": f"El nombre no puede tener más de {MAX_NAME_LENGTH} caracteres"}
-        
-        # Validar caracteres (solo letras, espacios y algunos caracteres especiales)
-        if not re.match(r'^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s\.\-\']+$', name):
-            return {"valid": False, "error": "El nombre solo puede contener letras, espacios, puntos, guiones y apostrofes"}
-        
-        return {"valid": True, "cleaned_name": name.title()}  # Capitalizar primera letra
-        
-    except Exception as e:
-        return {"valid": False, "error": f"Error validando nombre: {str(e)}"}
+def handle_start_command(chat_id):
+    """Comando /start - Bienvenida"""
+    logger.info(f"Start command from chat {chat_id}")
+    
+    text = """🎯 **BUSCADOR DE CLIENTES COMERCIALES** ⚡
 
-def validate_phone_format(phone):
-    """Validar formato de teléfono"""
-    try:
-        if not phone:
-            return {"valid": False, "error": "Teléfono requerido"}
-        
-        phone = str(phone).strip()
-        
-        # Permitir números, espacios, guiones, paréntesis y signo +
-        clean_phone = re.sub(r'[^\d\+\-\(\)\s]', '', phone)
-        
-        # Extraer solo números para validar longitud
-        digits_only = re.sub(r'[^\d]', '', clean_phone)
-        
-        if len(digits_only) < MIN_PHONE_LENGTH:
-            return {"valid": False, "error": f"El teléfono debe tener al menos {MIN_PHONE_LENGTH} dígitos"}
-        
-        if len(digits_only) > MAX_PHONE_LENGTH:
-            return {"valid": False, "error": f"El teléfono no puede tener más de {MAX_PHONE_LENGTH} dígitos"}
-        
-        return {"valid": True, "cleaned_phone": clean_phone}
-        
-    except Exception as e:
-        return {"valid": False, "error": f"Error validando teléfono: {str(e)}"}
+🔹 Te ayudo a buscar clientes y verificar su **disponibilidad comercial** para crear órdenes.
+🔹 También puedo **registrar nuevos comerciales** en el sistema.
 
-def check_comercial_exists(cedula):
-    """Verificar si el comercial ya existe en NocoDB"""
+**📋 ¿Qué puedo hacer?**
+• cliente - Buscar cliente y verificar disponibilidad
+• crear - Registrar nuevo comercial externo
+• resumen - Ver información del sistema
+• info - Ver qué datos obtienes
+• help - Ver todos los comandos
+
+**🔍 Puedo buscar por:**
+• NIT - Número de Identificación Tributaria  
+• CC - Cédula de Ciudadanía
+
+**🚦 Estados de cliente:**
+• 🟢 **DISPONIBLE** - Puede crear órdenes
+• 🚫 **NO DISPONIBLE** - Existe pero no puede crear órdenes
+• ❌ **NO ENCONTRADO** - Necesita pre-registro
+
+**👤 Para comerciales nuevos:**
+• crear - Registrar comercial con cédula, email, nombre y teléfono
+• Validación automática de duplicados
+• Formatos de email y teléfono validados
+
+**📊 Información que obtienes:**
+• 🏢 Nombre/Razón social
+• 👤 Representante legal
+• 📞 Teléfono de contacto
+• 📧 Email corporativo
+• 📍 Dirección completa
+• 🌆 Ciudad y departamento
+
+**💡 ¿Cómo funciona?**
+1. Escribe: cliente (para buscar) o crear (para registrar)
+2. Sigue las instrucciones paso a paso
+3. ¡Te muestro el resultado!
+
+🚀 **¡Empecemos a trabajar!**"""
+    
+    send_telegram_message(chat_id, text, parse_mode='Markdown')
+
+def handle_document_type_selection(chat_id, user_id, doc_type):
+    """Manejar selección de tipo de documento"""
+    logger.info(f"Document type selection: {doc_type} from chat {chat_id}")
+    
+    if user_id not in user_states:
+        handle_client_search_start(chat_id, user_id)
+        return
+    
+    if doc_type not in VALID_DOC_TYPES:
+        send_telegram_message(chat_id, f"❌ **Tipo inválido:** {doc_type}\n\n**Opciones válidas:** NIT, CC", parse_mode='Markdown')
+        return
+    
+    # Actualizar estado
+    user_states[user_id]['step'] = 'document_number'
+    user_states[user_id]['doc_type'] = doc_type
+    
+    doc_name = "NIT" if doc_type == "NIT" else "Cédula de Ciudadanía"
+    min_length = MIN_DOC_LENGTH
+    max_length = MAX_NIT_LENGTH if doc_type == "NIT" else MAX_CC_LENGTH
+    
+    text = f"""📄 **TIPO SELECCIONADO:** {doc_type} ({doc_name}) ✅
+
+**Paso 2/2:** Ingresa el número de documento
+
+**Formato requerido:**
+• Solo números (sin puntos, guiones ni espacios)
+• Entre {min_length} y {max_length} dígitos
+• Ejemplo: 901234567
+
+💡 **Instrucciones:**
+• Copia y pega el número si es necesario
+• Verifica que no tenga espacios al inicio o final
+
+⚡ **El sistema buscará automáticamente** en la base de datos una vez reciba el número."""
+    
+    send_telegram_message(chat_id, text, parse_mode='Markdown')
+
+def handle_conversation_state(chat_id, user_id, text):
+    """Manejar estados de conversación activa"""
+    if user_id not in user_states:
+        return
+    
+    state = user_states[user_id]
+    process = state.get('process', '')
+    step = state['step']
+    
     try:
-        logger.info(f"🔍 Checking if comercial exists: {cedula}")
-        
-        # Validar cédula primero
+        if process == 'client_search':
+            if step == 'document_number':
+                handle_document_number_input(chat_id, user_id, text)
+        elif process == 'create_comercial':
+            if step == 'cedula':
+                handle_cedula_input(chat_id, user_id, text)
+            elif step == 'email':
+                handle_email_input(chat_id, user_id, text)
+            elif step == 'name':
+                handle_name_input(chat_id, user_id, text)
+            elif step == 'phone':
+                handle_phone_input(chat_id, user_id, text)
+            elif step == 'confirm':
+                handle_create_confirmation(chat_id, user_id, text)
+        elif process == 'order_assignment':
+            if step == 'comercial_cedula':
+                handle_comercial_cedula_input(chat_id, user_id, text)
+            elif step == 'order_number':
+                handle_order_number_input(chat_id, user_id, text)
+            elif step == 'assignment_confirm':
+                handle_assignment_confirmation(chat_id, user_id, text)
+        else:
+            # Estado no reconocido, reiniciar
+            del user_states[user_id]
+            send_telegram_message(chat_id, "Estado de conversación inválido. Usa 'cliente' o 'crear' para reiniciar.")
+    
+    except Exception as e:
+        logger.error(f"Conversation state error: {e}")
+        if user_id in user_states:
+            del user_states[user_id]
+        send_telegram_message(chat_id, "Error procesando solicitud. Usa 'cliente' o 'crear' para reiniciar.")
+
+def handle_cedula_input(chat_id, user_id, cedula):
+    """Manejar entrada de cédula para comercial"""
+    logger.info(f"Cedula input: {cedula} from chat {chat_id}")
+    
+    state = user_states[user_id]
+    
+    # Enviar mensaje de verificación
+    send_telegram_message(chat_id, f"🔍 Verificando cédula: {cedula}...\n⏳ Un momento por favor")
+    
+    try:
+        # Validar formato de cédula
         validation = validate_cedula_format(cedula)
         if not validation["valid"]:
-            return {"success": False, "error": validation["error"]}
+            send_telegram_message(chat_id, f"❌ **Formato incorrecto:**\n{validation['error']}\n\n📝 **Intenta nuevamente:**", parse_mode='Markdown')
+            return
         
         clean_cedula = validation["cleaned_cedula"]
         
-        # Construir URL para consulta - EXACTAMENTE como tu CURL
-        url = f"{NOCODB_BASE_URL}/tables/{NOCODB_TABLE_ID}/records"
-        params = {
-            "where": f"(cedula,eq,{clean_cedula})",
-            "limit": 1,
-            "shuffle": 0,
-            "offset": 0
-        }
+        # Verificar si el comercial ya existe
+        exists_check = check_comercial_exists(clean_cedula)
         
-        headers = {
-            "accept": "application/json",
-            "xc-token": NOCODB_TOKEN
-        }
-        
-        logger.info(f"📡 Making GET request to: {url}")
-        logger.info(f"📋 Params: {params}")
-        logger.info(f"📋 Headers: {headers}")
-        
-        # Debug: Log equivalent curl command
-        import urllib.parse
-        query_string = urllib.parse.urlencode(params)
-        full_url = f"{url}?{query_string}"
-        curl_command = f"""
-Equivalent CURL:
-curl -X 'GET' '{full_url}' \\
-  -H 'accept: application/json' \\
-  -H 'xc-token: {NOCODB_TOKEN}'
-"""
-        logger.info(curl_command)
-        
-        response = requests.get(url, params=params, headers=headers, timeout=NOCODB_TIMEOUT)
-        
-        logger.info(f"📡 NocoDB Response Status: {response.status_code}")
-        logger.info(f"📡 NocoDB Response Headers: {dict(response.headers)}")
-        logger.info(f"📡 NocoDB Response Body: {response.text}")
-        
-        if response.status_code != 200:
-            logger.error(f"❌ NocoDB HTTP Error: {response.status_code} - {response.text}")
-            return {"success": False, "error": f"Error consultando base de datos: HTTP {response.status_code}"}
-        
-        try:
-            data = response.json()
-            page_info = data.get("pageInfo", {})
-            total_rows = page_info.get("totalRows", 0)
-            
-            logger.info(f"📊 Query result: totalRows = {total_rows}")
-            
-            if total_rows > 0:
-                # Comercial ya existe
-                existing_records = data.get("list", [])
-                existing_comercial = existing_records[0] if existing_records else {}
-                
-                logger.info(f"👤 Comercial already exists: {clean_cedula}")
-                logger.info(f"👤 Existing data: {existing_comercial}")
-                
-                return {
-                    "success": True, 
-                    "exists": True,
-                    "comercial_data": existing_comercial,
-                    "message": f"El comercial con cédula {clean_cedula} ya está registrado en el sistema"
-                }
-            else:
-                logger.info(f"✅ Comercial does not exist: {clean_cedula}")
-                return {
-                    "success": True, 
-                    "exists": False,
-                    "message": f"La cédula {clean_cedula} está disponible para registro"
-                }
-        
-        except json.JSONDecodeError as je:
-            logger.error(f"❌ Invalid JSON response: {je}")
-            logger.error(f"❌ Response text: {response.text}")
-            return {"success": False, "error": f"Respuesta inválida del servidor: {je}"}
-        
-    except requests.exceptions.Timeout:
-        logger.error(f"❌ Timeout checking comercial existence")
-        return {"success": False, "error": "Timeout al verificar comercial. Intenta nuevamente."}
-    
-    except requests.exceptions.ConnectionError:
-        logger.error(f"❌ Connection error checking comercial existence")
-        return {"success": False, "error": "Error de conexión con NocoDB. Verifica la conectividad."}
-        
-    except Exception as e:
-        logger.error(f"❌ Unexpected error checking comercial existence: {e}")
-        return {"success": False, "error": f"Error verificando comercial: {str(e)}"}
-
-def create_comercial(cedula, email, name, phone):
-    """Crear nuevo comercial en NocoDB"""
-    try:
-        logger.info(f"🏗️ Creating comercial: {cedula}")
-        
-        # Validar todos los campos
-        validations = {
-            "cedula": validate_cedula_format(cedula),
-            "email": validate_email_format(email),
-            "name": validate_name_format(name),
-            "phone": validate_phone_format(phone)
-        }
-        
-        # Verificar si hay errores de validación
-        validation_errors = []
-        for field, validation in validations.items():
-            if not validation["valid"]:
-                validation_errors.append(f"{field.capitalize()}: {validation['error']}")
-        
-        if validation_errors:
-            error_message = "\n".join(validation_errors)
-            logger.warning(f"⚠️ Validation errors: {error_message}")
-            return {"success": False, "error": f"Errores de validación:\n{error_message}"}
-        
-        # Extraer valores limpios
-        clean_data = {
-            "cedula": validations["cedula"]["cleaned_cedula"],
-            "email": validations["email"]["cleaned_email"],
-            "name": validations["name"]["cleaned_name"],
-            "phone": validations["phone"]["cleaned_phone"]
-        }
-        
-        # Verificar que el comercial no exista antes de crear
-        exists_check = check_comercial_exists(clean_data["cedula"])
         if not exists_check["success"]:
-            return {"success": False, "error": f"Error verificando existencia: {exists_check['error']}"}
+            send_telegram_message(chat_id, f"❌ **Error verificando cédula:**\n{exists_check['error']}\n\n📝 **Intenta nuevamente:**")
+            return
         
         if exists_check["exists"]:
-            return {"success": False, "error": exists_check["message"]}
-        
-        # Construir request para creación - EXACTAMENTE como tu CURL
-        url = f"{NOCODB_BASE_URL}/tables/{NOCODB_TABLE_ID}/records"
-        
-        headers = {
-            "accept": "application/json",
-            "xc-token": NOCODB_TOKEN,
-            "Content-Type": "application/json"
-        }
-        
-        payload = clean_data
-        
-        logger.info(f"📡 Making POST request to: {url}")
-        logger.info(f"📋 Headers: {headers}")
-        logger.info(f"📦 Payload: {payload}")
-        
-        # Debug: Log equivalent curl command
-        import json
-        curl_command = f"""
-Equivalent CURL:
-curl -X 'POST' '{url}' \\
-  -H 'accept: application/json' \\
-  -H 'xc-token: {NOCODB_TOKEN}' \\
-  -H 'Content-Type: application/json' \\
-  -d '{json.dumps(payload)}'
-"""
-        logger.info(curl_command)
-        
-        response = requests.post(url, json=payload, headers=headers, timeout=NOCODB_TIMEOUT)
-        
-        logger.info(f"📡 NocoDB Response Status: {response.status_code}")
-        logger.info(f"📡 NocoDB Response Headers: {dict(response.headers)}")
-        logger.info(f"📡 NocoDB Response Body: {response.text}")
-        
-        if response.status_code in [200, 201]:
-            try:
-                created_comercial = response.json()
-                logger.info(f"✅ Comercial created successfully: {clean_data['cedula']}")
-                
-                return {
-                    "success": True,
-                    "comercial_data": created_comercial,
-                    "message": f"Comercial {clean_data['name']} creado exitosamente",
-                    "details": {
-                        "cedula": clean_data["cedula"],
-                        "email": clean_data["email"],
-                        "name": clean_data["name"],
-                        "phone": clean_data["phone"]
-                    }
-                }
-            except json.JSONDecodeError as je:
-                logger.warning(f"⚠️ Response is not valid JSON: {je}")
-                # Si la respuesta no es JSON válido, pero el status es 200/201, asumir éxito
-                return {
-                    "success": True,
-                    "comercial_data": {"status": "created"},
-                    "message": f"Comercial {clean_data['name']} creado exitosamente",
-                    "details": clean_data,
-                    "note": "Response was not JSON but creation appears successful"
-                }
-        else:
-            logger.error(f"❌ NocoDB Create Error: {response.status_code}")
-            logger.error(f"❌ Error details: {response.text}")
+            # Comercial ya existe
+            comercial_data = exists_check["comercial_data"]
+            formatted_info = format_comercial_info(comercial_data)
             
-            # Intentar parsear el error
-            try:
-                error_data = response.json()
-                error_message = error_data.get('message', response.text)
-            except:
-                error_message = response.text
+            response = f"""🚫 **COMERCIAL YA REGISTRADO**
+
+{formatted_info}
+
+⚠️ **Estado:** Este comercial ya existe en el sistema.
+
+💡 **¿Qué hacer?**
+• Contacta al administrador si necesitas actualizar datos
+• Usa otra cédula para registrar un comercial diferente
+
+🔄 **Nueva acción:** Escribe 'crear' para intentar con otra cédula"""
             
-            return {
-                "success": False, 
-                "error": f"Error creando comercial (HTTP {response.status_code}): {error_message}",
-                "details": {
-                    "status_code": response.status_code,
-                    "response_body": response.text,
-                    "url": url,
-                    "payload": payload
-                }
-            }
+            send_telegram_message(chat_id, response, parse_mode='Markdown')
+            
+            # Limpiar estado
+            del user_states[user_id]
+            return
         
-    except requests.exceptions.Timeout:
-        logger.error(f"❌ Timeout error creating comercial")
-        return {"success": False, "error": "Timeout al crear comercial. Intenta nuevamente."}
+        # Cédula disponible, continuar con email
+        state['data']['cedula'] = clean_cedula
+        state['step'] = 'email'
+        
+        text = f"""✅ **CÉDULA DISPONIBLE:** {clean_cedula}
+
+**Paso 2/4:** Ingresa el email del comercial
+
+**📧 Formato requerido:**
+• Debe contener @ y un dominio válido
+• Ejemplos válidos:
+  - juan.perez@empresa.com
+  - maria@tienda.co
+  - carlos123@negocio.net
+
+**💡 Instrucciones:**
+• Escribe el email completo
+• Verifica que esté bien escrito
+• El sistema validará el formato automáticamente
+
+📝 **Ingresa el email:**"""
+        
+        send_telegram_message(chat_id, text, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"Cedula input error: {e}")
+        send_telegram_message(chat_id, f"❌ **Error procesando cédula:**\nNo pude verificar la cédula en este momento.\n\n📝 **Intenta nuevamente:**")
+
+def handle_email_input(chat_id, user_id, email):
+    """Manejar entrada de email para comercial"""
+    logger.info(f"Email input from chat {chat_id}")
     
-    except requests.exceptions.ConnectionError:
-        logger.error(f"❌ Connection error creating comercial")
-        return {"success": False, "error": "Error de conexión con NocoDB. Verifica la conectividad."}
-        
-    except Exception as e:
-        logger.error(f"❌ Unexpected error creating comercial: {e}")
-        return {"success": False, "error": f"Error inesperado creando comercial: {str(e)}"}
-
-def get_comercial_info(cedula):
-    """Obtener información detallada de un comercial"""
+    state = user_states[user_id]
+    
     try:
-        exists_check = check_comercial_exists(cedula)
-        
-        if not exists_check["success"]:
-            return exists_check
-        
-        if not exists_check["exists"]:
-            return {"success": True, "found": False, "message": "Comercial no encontrado"}
-        
-        comercial_data = exists_check["comercial_data"]
-        
-        return {
-            "success": True,
-            "found": True,
-            "comercial_data": comercial_data,
-            "formatted_info": format_comercial_info(comercial_data)
-        }
-        
-    except Exception as e:
-        logger.error(f"❌ Error getting comercial info: {e}")
-        return {"success": False, "error": f"Error obteniendo información: {str(e)}"}
-
-def format_comercial_info(comercial_data):
-    """Formatear información del comercial para mostrar"""
-    try:
-        if not isinstance(comercial_data, dict):
-            return "Datos de comercial inválidos"
-        
-        info_parts = []
-        
-        # Información principal
-        if "name" in comercial_data and comercial_data["name"]:
-            info_parts.append(f"👤 Nombre: {comercial_data['name']}")
-        
-        if "cedula" in comercial_data and comercial_data["cedula"]:
-            info_parts.append(f"🆔 Cédula: {comercial_data['cedula']}")
-        
-        if "email" in comercial_data and comercial_data["email"]:
-            info_parts.append(f"📧 Email: {comercial_data['email']}")
-        
-        if "phone" in comercial_data and comercial_data["phone"]:
-            info_parts.append(f"📞 Teléfono: {comercial_data['phone']}")
-        
-        # Información adicional si está disponible
-        if "created_at" in comercial_data and comercial_data["created_at"]:
-            info_parts.append(f"📅 Registrado: {comercial_data['created_at'][:10]}")
-        
-        return "\n".join(info_parts) if info_parts else "Información de comercial disponible"
-        
-    except Exception as e:
-        logger.error(f"❌ Error formatting comercial info: {e}")
-        return "Error mostrando información del comercial"
-
-# ===== FUNCIONES PARA ÓRDENES =====
-
-def validate_order_number_format(order_number):
-    """Validar y normalizar formato de número de orden"""
-    try:
-        if not order_number or not isinstance(order_number, str):
-            return {"valid": False, "error": "Número de orden requerido"}
-        
-        # Limpiar y normalizar
-        clean_order = order_number.strip().upper()
-        
-        # Si no tiene prefijo, agregarlo
-        if not clean_order.startswith(ORDER_NUMBER_PREFIX):
-            # Remover cualquier prefijo parcial (mp-, Mp-, etc)
-            if clean_order.lower().startswith('mp'):
-                clean_order = clean_order[2:].lstrip('-')
-            
-            # Agregar prefijo correcto
-            clean_order = ORDER_NUMBER_PREFIX + clean_order
-        
-        # Validar formato final
-        if not clean_order.startswith(ORDER_NUMBER_PREFIX):
-            return {"valid": False, "error": f"El número de orden debe comenzar con {ORDER_NUMBER_PREFIX}"}
-        
-        # Extraer la parte numérica después del prefijo
-        order_suffix = clean_order[len(ORDER_NUMBER_PREFIX):]
-        
-        # Validar longitud
-        if len(order_suffix) < MIN_ORDER_LENGTH:
-            return {"valid": False, "error": f"El número de orden debe tener al menos {MIN_ORDER_LENGTH} caracteres después de {ORDER_NUMBER_PREFIX}"}
-        
-        if len(order_suffix) > MAX_ORDER_LENGTH:
-            return {"valid": False, "error": f"El número de orden no puede tener más de {MAX_ORDER_LENGTH} caracteres después de {ORDER_NUMBER_PREFIX}"}
-        
-        # Validar caracteres (solo números y guiones)
-        if not re.match(r'^[0-9\-]+, order_suffix):
-            return {"valid": False, "error": "El número de orden solo puede contener números y guiones después del prefijo"}
-        
-        return {"valid": True, "normalized_order": clean_order}
-        
-    except Exception as e:
-        return {"valid": False, "error": f"Error validando número de orden: {str(e)}"}
-
-def get_comercial_by_cedula(cedula):
-    """Obtener comercial por cédula y retornar ID si existe"""
-    try:
-        logger.info(f"🔍 Getting comercial by cedula: {cedula}")
-        
-        # Reutilizar la función existente pero extraer el ID
-        exists_check = check_comercial_exists(cedula)
-        
-        if not exists_check.get("success"):
-            return {"success": False, "error": exists_check.get("error")}
-        
-        if not exists_check.get("exists"):
-            return {
-                "success": True,
-                "found": False,
-                "message": f"No se encontró comercial con cédula {cedula}"
-            }
-        
-        comercial_data = exists_check.get("comercial_data", {})
-        comercial_id = comercial_data.get("Id") or comercial_data.get("id")
-        
-        if not comercial_id:
-            logger.warning(f"⚠️ Comercial found but no ID field: {comercial_data}")
-            return {
-                "success": False,
-                "error": "Comercial encontrado pero sin ID válido"
-            }
-        
-        logger.info(f"✅ Comercial found with ID: {comercial_id}")
-        
-        return {
-            "success": True,
-            "found": True,
-            "comercial_id": comercial_id,
-            "comercial_data": comercial_data,
-            "message": f"Comercial encontrado: {comercial_data.get('name', 'Sin nombre')}"
-        }
-        
-    except Exception as e:
-        logger.error(f"❌ Error getting comercial by cedula: {e}")
-        return {"success": False, "error": f"Error obteniendo comercial: {str(e)}"}
-
-def check_order_exists(order_number):
-    """Verificar si la orden existe en NocoDB"""
-    try:
-        logger.info(f"📦 Checking if order exists: {order_number}")
-        
-        # Validar y normalizar número de orden
-        validation = validate_order_number_format(order_number)
+        # Validar formato de email
+        validation = validate_email_format(email)
         if not validation["valid"]:
-            return {"success": False, "error": validation["error"]}
+            send_telegram_message(chat_id, f"❌ **Formato de email incorrecto:**\n{validation['error']}\n\n📧 **Ejemplos válidos:**\n• juan@empresa.com\n• maria@tienda.co\n\n📝 **Intenta nuevamente:**", parse_mode='Markdown')
+            return
         
-        normalized_order = validation["normalized_order"]
+        clean_email = validation["cleaned_email"]
         
-        # Construir URL para consulta de órdenes
-        url = f"{NOCODB_BASE_URL}/tables/{NOCODB_ORDERS_TABLE_ID}/records"
-        params = {
-            "where": f"(order_number,eq,{normalized_order})",
-            "limit": 1,
-            "shuffle": 0,
-            "offset": 0
-        }
+        # Guardar email y continuar con nombre
+        state['data']['email'] = clean_email
+        state['step'] = 'name'
         
-        headers = {
-            "accept": "application/json",
-            "xc-token": NOCODB_TOKEN
-        }
+        text = f"""✅ **EMAIL VÁLIDO:** {clean_email}
+
+**Paso 3/4:** Ingresa el nombre del comercial
+
+**👤 Formato requerido:**
+• Mínimo 2 caracteres, máximo 100
+• Solo letras, espacios, puntos, guiones y apostrofes
+• Ejemplos válidos:
+  - Juan Pérez
+  - María José Rodríguez
+  - Carlos O'Connor
+  - Ana-Sofía Martínez
+
+**💡 Instrucciones:**
+• Escribe el nombre completo
+• Puede incluir nombres y apellidos
+• El sistema capitalizará automáticamente
+
+📝 **Ingresa el nombre:**"""
         
-        logger.info(f"📡 Making GET request to: {url}")
-        logger.info(f"📋 Params: {params}")
+        send_telegram_message(chat_id, text, parse_mode='Markdown')
         
-        # Debug: Log equivalent curl command
-        query_string = urllib.parse.urlencode(params)
-        full_url = f"{url}?{query_string}"
-        curl_command = f"""
-Equivalent CURL:
-curl -X 'GET' '{full_url}' \\
-  -H 'accept: application/json' \\
-  -H 'xc-token: {NOCODB_TOKEN}'
-"""
-        logger.info(curl_command)
+    except Exception as e:
+        logger.error(f"Email input error: {e}")
+        send_telegram_message(chat_id, f"❌ **Error procesando email:**\nNo pude validar el email en este momento.\n\n📝 **Intenta nuevamente:**")
+
+def handle_name_input(chat_id, user_id, name):
+    """Manejar entrada de nombre para comercial"""
+    logger.info(f"Name input from chat {chat_id}")
+    
+    state = user_states[user_id]
+    
+    try:
+        # Validar formato de nombre
+        validation = validate_name_format(name)
+        if not validation["valid"]:
+            send_telegram_message(chat_id, f"❌ **Formato de nombre incorrecto:**\n{validation['error']}\n\n👤 **Ejemplos válidos:**\n• Juan Pérez\n• María José\n• Carlos O'Connor\n\n📝 **Intenta nuevamente:**", parse_mode='Markdown')
+            return
         
-        response = requests.get(url, params=params, headers=headers, timeout=NOCODB_TIMEOUT)
+        clean_name = validation["cleaned_name"]
         
-        logger.info(f"📡 NocoDB Response Status: {response.status_code}")
-        logger.info(f"📡 NocoDB Response Body: {response.text}")
+        # Guardar nombre y continuar con teléfono
+        state['data']['name'] = clean_name
+        state['step'] = 'phone'
         
-        if response.status_code != 200:
-            logger.error(f"❌ NocoDB HTTP Error: {response.status_code} - {response.text}")
-            return {"success": False, "error": f"Error consultando órdenes: HTTP {response.status_code}"}
+        text = f"""✅ **NOMBRE VÁLIDO:** {clean_name}
+
+**Paso 4/4:** Ingresa el teléfono del comercial
+
+**📞 Formato requerido:**
+• Entre 7 y 20 dígitos
+• Puede incluir espacios, guiones, paréntesis y signo +
+• Ejemplos válidos:
+  - 3001234567
+  - +57 300 123 4567
+  - (1) 234-5678
+  - 300-123-4567
+
+**💡 Instrucciones:**
+• Escribe el número completo
+• Incluye código de país si es internacional
+• El sistema validará la longitud automáticamente
+
+📝 **Ingresa el teléfono:**"""
+        
+        send_telegram_message(chat_id, text, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"Name input error: {e}")
+        send_telegram_message(chat_id, f"❌ **Error procesando nombre:**\nNo pude validar el nombre en este momento.\n\n📝 **Intenta nuevamente:**")
+
+def handle_phone_input(chat_id, user_id, phone):
+    """Manejar entrada de teléfono para comercial"""
+    logger.info(f"Phone input from chat {chat_id}")
+    
+    state = user_states[user_id]
+    
+    try:
+        # Validar formato de teléfono
+        validation = validate_phone_format(phone)
+        if not validation["valid"]:
+            send_telegram_message(chat_id, f"❌ **Formato de teléfono incorrecto:**\n{validation['error']}\n\n📞 **Ejemplos válidos:**\n• 3001234567\n• +57 300 123 4567\n• (1) 234-5678\n\n📝 **Intenta nuevamente:**", parse_mode='Markdown')
+            return
+        
+        clean_phone = validation["cleaned_phone"]
+        
+        # Guardar teléfono y mostrar resumen para confirmación
+        state['data']['phone'] = clean_phone
+        state['step'] = 'confirm'
+        
+        data = state['data']
+        
+        text = f"""📋 **RESUMEN DEL COMERCIAL A CREAR**
+
+**Datos ingresados:**
+🆔 **Cédula:** {data['cedula']}
+📧 **Email:** {data['email']}
+👤 **Nombre:** {data['name']}
+📞 **Teléfono:** {data['phone']}
+
+**¿Los datos son correctos?**
+
+**✅ Para CONFIRMAR:** Escribe `SI` o `CONFIRMAR`
+**❌ Para CANCELAR:** Escribe `NO` o `CANCELAR`
+
+💡 **Nota:** Una vez confirmado, se creará el comercial en el sistema."""
+        
+        send_telegram_message(chat_id, text, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"Phone input error: {e}")
+        send_telegram_message(chat_id, f"❌ **Error procesando teléfono:**\nNo pude validar el teléfono en este momento.\n\n📝 **Intenta nuevamente:**")
+
+def handle_comercial_cedula_input(chat_id, user_id, cedula):
+    """Manejar entrada de cédula para asignación de orden"""
+    logger.info(f"Comercial cedula input: {cedula} from chat {chat_id}")
+    
+    state = user_states[user_id]
+    
+    # Enviar mensaje de verificación
+    send_telegram_message(chat_id, f"🔍 Verificando comercial con cédula: {cedula}...\n⏳ Un momento por favor")
+    
+    try:
+        # Verificar si el comercial existe y obtener ID
+        result = get_comercial_by_cedula(cedula)
+        
+        if not result.get("success"):
+            send_telegram_message(chat_id, f"❌ **Error verificando comercial:**\n{result.get('error')}\n\n📝 **Intenta nuevamente:**")
+            return
+        
+        if not result.get("found"):
+            # Comercial no existe
+            response = f"""❌ **COMERCIAL NO ENCONTRADO**
+
+La cédula **{cedula}** no está registrada en el sistema.
+
+**¿Qué hacer?**
+• Verifica que la cédula sea correcta
+• Registra primero el comercial con el comando `crear`
+• Una vez registrado, podrás asignar órdenes
+
+**🔄 Opciones:**
+• Escribe `crear` para registrar el comercial
+• Escribe `orden` para intentar con otra cédula
+
+📝 **¿Quieres intentar con otra cédula?** Ingresa la cédula:"""
+            
+            send_telegram_message(chat_id, response, parse_mode='Markdown')
+            return
+        
+        # Comercial encontrado, guardar datos y continuar
+        comercial_id = result.get("comercial_id")
+        comercial_data = result.get("comercial_data")
+        
+        state['data']['comercial_cedula'] = cedula
+        state['data']['comercial_id'] = comercial_id
+        state['data']['comercial_data'] = comercial_data
+        state['step'] = 'order_number'
+        
+        formatted_info = format_comercial_info(comercial_data)
+        
+        text = f"""✅ **COMERCIAL ENCONTRADO** 
+
+{formatted_info}
+
+**Paso 2/3:** Ingresa el número de orden
+
+**📦 Formato de orden:**
+• Ejemplos aceptados:
+  - MP-0003
+  - mp-0003  
+  - Mp-003
+  - 0003 (se convertirá a MP-0003)
+
+**💡 Instrucciones:**
+• El sistema normalizará el formato automáticamente
+• Verificará que la orden exista en el sistema
+• Formato final será: MP-XXXXX
+
+📝 **Ingresa el número de orden:**"""
+        
+        send_telegram_message(chat_id, text, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"Comercial cedula input error: {e}")
+        send_telegram_message(chat_id, f"❌ **Error procesando cédula:**\nNo pude verificar el comercial en este momento.\n\n📝 **Intenta nuevamente:**")
+
+def handle_order_number_input(chat_id, user_id, order_number):
+    """Manejar entrada de número de orden"""
+    logger.info(f"Order number input: {order_number} from chat {chat_id}")
+    
+    state = user_states[user_id]
+    
+    # Enviar mensaje de verificación
+    send_telegram_message(chat_id, f"📦 Verificando orden: {order_number}...\n⏳ Un momento por favor")
+    
+    try:
+        # Verificar que la orden existe
+        result = check_order_exists(order_number)
+        
+        if not result.get("success"):
+            send_telegram_message(chat_id, f"❌ **Error verificando orden:**\n{result.get('error')}\n\n📝 **Intenta nuevamente:**")
+            return
+        
+        if not result.get("exists"):
+            normalized_order = result.get("normalized_order", order_number)
+            
+            response = f"""❌ **ORDEN NO ENCONTRADA**
+
+La orden **{normalized_order}** no existe en el sistema.
+
+**¿Qué verificar?**
+• El número de orden sea correcto
+• La orden esté creada en el sistema
+• No haya errores de escritura
+
+**💡 Formato normalizado:** {normalized_order}
+
+📝 **¿Quieres intentar con otro número?** Ingresa la orden:"""
+            
+            send_telegram_message(chat_id, response, parse_mode='Markdown')
+            return
+        
+        # Orden encontrada, preparar confirmación
+        normalized_order = result.get("normalized_order")
+        order_data = result.get("order_data")
+        
+        state['data']['order_number'] = normalized_order
+        state['data']['order_data'] = order_data
+        state['step'] = 'assignment_confirm'
+        
+        comercial_data = state['data']['comercial_data']
+        
+        text = f"""📋 **RESUMEN DE ASIGNACIÓN**
+
+**Comercial:**
+👤 **Nombre:** {comercial_data.get('name', 'Sin nombre')}
+🆔 **Cédula:** {comercial_data.get('cedula')}
+📧 **Email:** {comercial_data.get('email', 'No disponible')}
+
+**Orden:**
+📦 **Número:** {normalized_order}
+✅ **Estado:** Orden válida en el sistema
+
+**¿Confirmas la asignación?**
+
+**✅ Para CONFIRMAR:** Escribe `SI` o `CONFIRMAR`
+**❌ Para CANCELAR:** Escribe `NO` o `CANCELAR`
+
+💡 **Nota:** Una vez confirmado, la orden será asignada al comercial."""
+        
+        send_telegram_message(chat_id, text, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"Order number input error: {e}")
+        send_telegram_message(chat_id, f"❌ **Error procesando orden:**\nNo pude verificar la orden en este momento.\n\n📝 **Intenta nuevamente:**")
+
+def handle_assignment_confirmation(chat_id, user_id, confirmation):
+    """Manejar confirmación de asignación de orden"""
+    logger.info(f"Assignment confirmation: {confirmation} from chat {chat_id}")
+    
+    state = user_states[user_id]
+    confirmation_lower = confirmation.lower().strip()
+    
+    if confirmation_lower in ['si', 'sí', 'yes', 'confirmar', 'confirmo', 'ok', 'vale']:
+        # Confirmar asignación
+        send_telegram_message(chat_id, "🎯 **Asignando orden...**\n⏳ *Un momento por favor*")
         
         try:
-            data = response.json()
-            page_info = data.get("pageInfo", {})
-            total_rows = page_info.get("totalRows", 0)
+            data = state['data']
             
-            logger.info(f"📊 Query result: totalRows = {total_rows}")
+            # Procesar asignación completa
+            result = process_order_assignment(
+                cedula=data['comercial_cedula'],
+                order_number=data['order_number']
+            )
             
-            if total_rows > 0:
-                # Orden existe
-                existing_records = data.get("list", [])
-                existing_order = existing_records[0] if existing_records else {}
+            if result["success"]:
+                # Éxito
+                details = result["details"]
                 
-                logger.info(f"📦 Order exists: {normalized_order}")
-                logger.info(f"📦 Order data: {existing_order}")
+                response = f"""✅ **¡ORDEN ASIGNADA EXITOSAMENTE!** 🎉
+
+**Información de la asignación:**
+📦 **Orden:** {details['order_number']}
+👤 **Comercial:** {details['comercial_name']}
+🆔 **Cédula:** {details['comercial_cedula']}
+🔗 **ID Comercial:** {details['comercial_id']}
+
+**✅ Estado:** Orden asignada y activa en el sistema
+
+🔄 **¿Qué hacer ahora?**
+• El comercial ya tiene la orden asignada
+• Para asignar otra orden: escribe 'orden'
+• Para buscar clientes: escribe 'cliente'
+• Para registrar comercial: escribe 'crear'
+
+🎯 **¡Asignación completada!**"""
                 
-                return {
-                    "success": True,
-                    "exists": True,
-                    "order_data": existing_order,
-                    "normalized_order": normalized_order,
-                    "message": f"La orden {normalized_order} existe en el sistema"
-                }
+                send_telegram_message(chat_id, response, parse_mode='Markdown')
+                
             else:
-                logger.info(f"❌ Order does not exist: {normalized_order}")
-                return {
-                    "success": True,
-                    "exists": False,
-                    "normalized_order": normalized_order,
-                    "message": f"La orden {normalized_order} no existe en el sistema"
-                }
-        
-        except json.JSONDecodeError as je:
-            logger.error(f"❌ Invalid JSON response: {je}")
-            return {"success": False, "error": f"Respuesta inválida del servidor: {je}"}
-        
-    except requests.exceptions.Timeout:
-        logger.error(f"❌ Timeout checking order existence")
-        return {"success": False, "error": "Timeout al verificar orden. Intenta nuevamente."}
+                # Error en asignación
+                send_telegram_message(chat_id, f"❌ **Error asignando orden:**\n{result['error']}\n\n🔄 **Intenta nuevamente:** Escribe 'orden'")
+            
+            # Limpiar estado
+            del user_states[user_id]
+            
+        except Exception as e:
+            logger.error(f"Assignment confirmation error: {e}")
+            send_telegram_message(chat_id, f"❌ **Error procesando asignación:**\nNo pude completar la asignación en este momento.\n\n🔄 **Intenta nuevamente:** Escribe 'orden'")
+            if user_id in user_states:
+                del user_states[user_id]
     
-    except requests.exceptions.ConnectionError:
-        logger.error(f"❌ Connection error checking order existence")
-        return {"success": False, "error": "Error de conexión con NocoDB. Verifica la conectividad."}
+    elif confirmation_lower in ['no', 'cancelar', 'cancel', 'salir', 'exit']:
+        # Cancelar asignación
+        send_telegram_message(chat_id, "❌ **Asignación cancelada**\n\n🔄 **Para intentar nuevamente:** Escribe 'orden'\n💡 **Para otras opciones:** Escribe 'help'")
         
-    except Exception as e:
-        logger.error(f"❌ Unexpected error checking order existence: {e}")
-        return {"success": False, "error": f"Error verificando orden: {str(e)}"}
-
-def assign_order_to_comercial(order_number, comercial_id):
-    """Asignar una orden a un comercial externo"""
-    try:
-        logger.info(f"🎯 Assigning order {order_number} to comercial ID {comercial_id}")
+        # Limpiar estado
+        del user_states[user_id]
+    
+    else:
+        # Respuesta no reconocida
+        send_telegram_message(chat_id, "❓ **Respuesta no reconocida**\n\n**✅ Para CONFIRMAR:** Escribe `SI`\n**❌ Para CANCELAR:** Escribe `NO`", parse_mode='Markdown')
+    """Manejar confirmación de creación de comercial"""
+    logger.info(f"Create confirmation: {confirmation} from chat {chat_id}")
+    
+    state = user_states[user_id]
+    confirmation_lower = confirmation.lower().strip()
+    
+    if confirmation_lower in ['si', 'sí', 'yes', 'confirmar', 'confirmo', 'ok', 'vale']:
+        # Confirmar creación
+        send_telegram_message(chat_id, "🏗️ **Creando comercial...**\n⏳ *Un momento por favor*")
         
-        # Validar y normalizar número de orden
-        validation = validate_order_number_format(order_number)
-        if not validation["valid"]:
-            return {"success": False, "error": validation["error"]}
-        
-        normalized_order = validation["normalized_order"]
-        
-        # Construir request para asignación
-        url = f"{NOCODB_BASE_URL}/tables/{NOCODB_ASSIGNMENTS_TABLE_ID}/records"
-        
-        headers = {
-            "accept": "application/json",
-            "xc-token": NOCODB_TOKEN,
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "order_number": normalized_order,
-            "commercial_ext": comercial_id
-        }
-        
-        logger.info(f"📡 Making POST request to: {url}")
-        logger.info(f"📋 Headers: {headers}")
-        logger.info(f"📦 Payload: {payload}")
-        
-        # Debug: Log equivalent curl command
-        curl_command = f"""
-Equivalent CURL:
-curl -X 'POST' '{url}' \\
-  -H 'accept: application/json' \\
-  -H 'xc-token: {NOCODB_TOKEN}' \\
-  -H 'Content-Type: application/json' \\
-  -d '{json.dumps(payload)}'
-"""
-        logger.info(curl_command)
-        
-        response = requests.post(url, json=payload, headers=headers, timeout=NOCODB_TIMEOUT)
-        
-        logger.info(f"📡 NocoDB Response Status: {response.status_code}")
-        logger.info(f"📡 NocoDB Response Headers: {dict(response.headers)}")
-        logger.info(f"📡 NocoDB Response Body: {response.text}")
-        
-        if response.status_code in [200, 201]:
-            try:
-                assignment_data = response.json()
-                logger.info(f"✅ Order assigned successfully: {normalized_order} -> {comercial_id}")
+        try:
+            data = state['data']
+            
+            # Crear comercial
+            result = create_comercial(
+                cedula=data['cedula'],
+                email=data['email'], 
+                name=data['name'],
+                phone=data['phone']
+            )
+            
+            if result["success"]:
+                # Éxito
+                details = result["details"]
                 
-                return {
-                    "success": True,
-                    "assignment_data": assignment_data,
-                    "message": f"Orden {normalized_order} asignada exitosamente",
-                    "details": {
-                        "order_number": normalized_order,
-                        "comercial_id": comercial_id
-                    }
-                }
-            except json.JSONDecodeError as je:
-                logger.warning(f"⚠️ Response is not valid JSON: {je}")
-                # Si la respuesta no es JSON válido, pero el status es 200/201, asumir éxito
-                return {
-                    "success": True,
-                    "assignment_data": {"status": "assigned"},
-                    "message": f"Orden {normalized_order} asignada exitosamente",
-                    "details": {
-                        "order_number": normalized_order,
-                        "comercial_id": comercial_id
-                    },
-                    "note": "Response was not JSON but assignment appears successful"
-                }
-        else:
-            logger.error(f"❌ NocoDB Assignment Error: {response.status_code}")
-            logger.error(f"❌ Error details: {response.text}")
-            
-            # Intentar parsear el error
-            try:
-                error_data = response.json()
-                error_message = error_data.get('message', response.text)
-            except:
-                error_message = response.text
-            
-            return {
-                "success": False,
-                "error": f"Error asignando orden (HTTP {response.status_code}): {error_message}",
-                "details": {
-                    "status_code": response.status_code,
-                    "response_body": response.text,
-                    "url": url,
-                    "payload": payload
-                }
-            }
-        
-    except requests.exceptions.Timeout:
-        logger.error(f"❌ Timeout error assigning order")
-        return {"success": False, "error": "Timeout al asignar orden. Intenta nuevamente."}
-    
-    except requests.exceptions.ConnectionError:
-        logger.error(f"❌ Connection error assigning order")
-        return {"success": False, "error": "Error de conexión con NocoDB. Verifica la conectividad."}
-        
-    except Exception as e:
-        logger.error(f"❌ Unexpected error assigning order: {e}")
-        return {"success": False, "error": f"Error inesperado asignando orden: {str(e)}"}
+                response = f"""✅ **¡COMERCIAL CREADO EXITOSAMENTE!** 🎉
 
-def process_order_assignment(cedula, order_number):
-    """Procesar asignación completa de orden a comercial"""
+**Información registrada:**
+🆔 **Cédula:** {details['cedula']}
+👤 **Nombre:** {details['name']}
+📧 **Email:** {details['email']}
+📞 **Teléfono:** {details['phone']}
+
+**✅ Estado:** Comercial registrado y activo en el sistema
+
+🔄 **¿Qué hacer ahora?**
+• El comercial ya puede usar el sistema
+• Para registrar otro: escribe 'crear'
+• Para buscar clientes: escribe 'cliente'
+
+🎯 **¡Listo para trabajar!**"""
+                
+                send_telegram_message(chat_id, response, parse_mode='Markdown')
+                
+            else:
+                # Error en creación
+                send_telegram_message(chat_id, f"❌ **Error creando comercial:**\n{result['error']}\n\n🔄 **Intenta nuevamente:** Escribe 'crear'")
+            
+            # Limpiar estado
+            del user_states[user_id]
+            
+        except Exception as e:
+            logger.error(f"Create confirmation error: {e}")
+            send_telegram_message(chat_id, f"❌ **Error procesando creación:**\nNo pude crear el comercial en este momento.\n\n🔄 **Intenta nuevamente:** Escribe 'crear'")
+            if user_id in user_states:
+                del user_states[user_id]
+    
+    elif confirmation_lower in ['no', 'cancelar', 'cancel', 'salir', 'exit']:
+        # Cancelar creación
+        send_telegram_message(chat_id, "❌ **Creación cancelada**\n\n🔄 **Para intentar nuevamente:** Escribe 'crear'\n💡 **Para otras opciones:** Escribe 'help'")
+        
+        # Limpiar estado
+        del user_states[user_id]
+    
+    else:
+        # Respuesta no reconocida
+        send_telegram_message(chat_id, "❓ **Respuesta no reconocida**\n\n**✅ Para CONFIRMAR:** Escribe `SI`\n**❌ Para CANCELAR:** Escribe `NO`", parse_mode='Markdown')
+
+def handle_document_number_input(chat_id, user_id, doc_number):
+    """Manejar entrada del número de documento"""
+    logger.info(f"Document number input: {doc_number} from chat {chat_id}")
+    
+    state = user_states[user_id]
+    doc_type = state.get('doc_type')
+    
+    # Enviar mensaje de búsqueda en proceso
+    send_telegram_message(chat_id, f"Buscando {doc_type}: {doc_number}...\nUn momento por favor")
+    
     try:
-        logger.info(f"🎯 Processing order assignment: {order_number} to cedula {cedula}")
+        # Validar documento
+        logger.info(f"Validating document: {doc_type} {doc_number}")
+        validation = validate_document_number(doc_type, doc_number)
+        if not validation["valid"]:
+            logger.warning(f"Validation failed: {validation['error']}")
+            send_telegram_message(chat_id, f"Formato incorrecto:\n{validation['error']}\n\nIntenta nuevamente con solo números.")
+            return
         
-        # Paso 1: Verificar comercial y obtener ID
-        comercial_result = get_comercial_by_cedula(cedula)
-        if not comercial_result.get("success"):
-            return {"success": False, "error": comercial_result.get("error")}
+        # Buscar cliente con nuevo flujo comercial
+        logger.info(f"Starting commercial search for {doc_type}: {doc_number}")
+        search_result = search_client_by_document_with_availability(doc_type, doc_number)
+        logger.info(f"Search result: success={search_result.get('success')}, found={search_result.get('found')}, unavailable={search_result.get('unavailable', False)}")
         
-        if not comercial_result.get("found"):
-            return {"success": False, "error": comercial_result.get("message")}
+        if not search_result["success"]:
+            logger.error(f"Search failed: {search_result.get('error')}")
+            send_telegram_message(chat_id, f"Error al buscar:\nNo pude consultar los datos en este momento.\n\nPor favor intenta en unos minutos.")
+            return
         
-        comercial_id = comercial_result.get("comercial_id")
-        comercial_data = comercial_result.get("comercial_data")
+        if search_result["found"]:
+            # Verificar si es cliente no disponible
+            if search_result.get("unavailable"):
+                logger.info(f"Client is unavailable for orders")
+                response = f"""CLIENTE EXISTENTE - NO DISPONIBLE
+
+Documento: {doc_type} {doc_number}
+
+Estado: Este cliente EXISTE en el sistema pero NO está disponible para crear nuevas órdenes en este momento.
+
+Recomendación: Contacta a tu supervisor o al área comercial para más información sobre este cliente.
+
+Nueva búsqueda: Escribe 'cliente'"""
+                
+                send_telegram_message(chat_id, response)
+                
+            else:
+                # Cliente encontrado y disponible
+                matches = search_result["matches"]
+                total_matches = search_result["total_matches"]
+                logger.info(f"Found {total_matches} available matches")
+                
+                if total_matches == 1:
+                    # Un solo cliente encontrado
+                    client_match = matches[0]
+                    logger.info(f"Formatting single available client info...")
+                    
+                    try:
+                        client_info = format_client_info(
+                            client_match["client_data"], 
+                            client_match["matched_field"]
+                        )
+                        logger.info(f"Client info formatted: {len(client_info)} chars")
+                        
+                        response = f"""CLIENTE DISPONIBLE!
+
+{client_info}
+
+Estado: Cliente DISPONIBLE para crear órdenes
+
+Búsqueda realizada:
+• Tipo: {doc_type}
+• Número: {doc_number}
+
+Nueva búsqueda: Escribe 'cliente'"""
+                        
+                        logger.info(f"Sending response: {len(response)} characters")
+                        success = send_telegram_message(chat_id, response)
+                        logger.info(f"Message sent: {success}")
+                        
+                    except Exception as format_error:
+                        logger.error(f"Format error: {format_error}")
+                        # Respuesta de fallback más simple
+                        simple_response = f"""CLIENTE DISPONIBLE!
+
+Documento: {doc_type} {doc_number}
+Estado: Cliente disponible para crear órdenes
+
+Nueva búsqueda: Escribe 'cliente'"""
+                        send_telegram_message(chat_id, simple_response)
+                    
+                else:
+                    # Múltiples clientes encontrados
+                    logger.info(f"Formatting multiple available clients: {total_matches}")
+                    response = f"""VARIOS CLIENTES DISPONIBLES! ({total_matches})
+
+Documento buscado: {doc_type} {doc_number}
+Estado: Clientes DISPONIBLES para crear órdenes
+Resultado: Se encontraron {total_matches} clientes con este documento
+
+Nueva búsqueda: Escribe 'cliente'"""
+                    
+                    send_telegram_message(chat_id, response)
+            
+        else:
+            # Cliente no encontrado - mostrar opción de pre-registro
+            total_searched = search_result.get("total_clients_searched", 0)
+            logger.info(f"No matches found in {total_searched} clients - showing pre-register option")
+            
+            response = f"""CLIENTE NO ENCONTRADO
+
+Lo que busqué:
+• Tipo de documento: {doc_type}
+• Número: {doc_number}
+• Clientes consultados: {total_searched:,}
+
+¿Qué hacer ahora?
+
+CREAR NUEVO CLIENTE:
+Para registrar este cliente usa el siguiente enlace:
+
+{PREREGISTER_URL}
+
+Pasos:
+1. Hacer clic en el enlace de arriba
+2. Completar el formulario de pre-registro
+3. Una vez registrado, podrás crear órdenes
+
+Nueva búsqueda: Escribe 'cliente'"""
+            
+            send_telegram_message(chat_id, response)
         
-        # Paso 2: Verificar que la orden existe
-        order_result = check_order_exists(order_number)
-        if not order_result.get("success"):
-            return {"success": False, "error": order_result.get("error")}
-        
-        if not order_result.get("exists"):
-            return {"success": False, "error": order_result.get("message")}
-        
-        normalized_order = order_result.get("normalized_order")
-        
-        # Paso 3: Asignar orden al comercial
-        assignment_result = assign_order_to_comercial(normalized_order, comercial_id)
-        if not assignment_result.get("success"):
-            return {"success": False, "error": assignment_result.get("error")}
-        
-        # Éxito completo
-        return {
-            "success": True,
-            "message": f"Orden {normalized_order} asignada exitosamente a {comercial_data.get('name', 'comercial')}",
-            "details": {
-                "order_number": normalized_order,
-                "comercial_id": comercial_id,
-                "comercial_name": comercial_data.get('name'),
-                "comercial_cedula": comercial_data.get('cedula')
-            },
-            "assignment_data": assignment_result.get("assignment_data")
-        }
+        # Limpiar estado
+        del user_states[user_id]
+        logger.info(f"Search process completed, user state cleaned")
         
     except Exception as e:
-        logger.error(f"❌ Error processing order assignment: {e}")
-        return {"success": False, "error": f"Error procesando asignación: {str(e)}"}
+        logger.error(f"Document search error: {e}")
+        send_telegram_message(chat_id, f"Hubo un problema:\nNo pude completar la búsqueda en este momento.\n\nUsa 'cliente' para intentar nuevamente.")
+        if user_id in user_states:
+            del user_states[user_id]
+
+def handle_stats_command(chat_id):
+    """Manejar comando de estadísticas"""
+    logger.info(f"Stats command from chat {chat_id}")
+    
+    send_telegram_message(chat_id, "📊 **Cargando información...**\n⏳ *Un momento por favor*")
+    
+    try:
+        summary_result = get_clients_summary()
+        
+        if not summary_result["success"]:
+            send_telegram_message(chat_id, f"❌ **No pude obtener la información en este momento.**\nIntenta nuevamente en unos minutos.", parse_mode='Markdown')
+            return
+        
+        stats = summary_result["stats"]
+        
+        cached_status = "✅ Sí" if not stats['cached'] else "📋 Desde memoria"
+        
+        response = f"""📊 **INFORMACIÓN DEL SISTEMA** ⚡
+
+**📈 Resumen:**
+• Total de clientes: {stats['total_clients']:,}
+• Información actualizada: {cached_status}
+
+**🔍 ¿Qué puedo buscar?**
+• Clientes por NIT (empresas)
+• Clientes por Cédula (personas)
+• Información completa de contacto
+• Datos de ubicación
+
+**👤 ¿Qué puedo registrar?**
+• Comerciales externos nuevos
+• Validación automática de duplicados
+• Datos completos de contacto
+
+**📦 ¿Qué puedo asignar?**
+• Órdenes a comerciales existentes
+• Verificación automática de comercial
+• Verificación automática de orden
+• Formato MP-XXXXX normalizado
+
+**⚡ Características:**
+✅ Búsqueda rápida e inteligente
+✅ Más de {stats['total_clients']:,} clientes disponibles
+✅ Registro seguro de comerciales
+✅ Asignación automatizada de órdenes
+✅ Información siempre actualizada
+✅ Disponible las 24 horas
+
+💡 **Para buscar un cliente:** Escribe `cliente`
+👤 **Para registrar comercial:** Escribe `crear`
+📦 **Para asignar orden:** Escribe `orden`"""
+        
+        send_telegram_message(chat_id, response, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"Stats error: {e}")
+        send_telegram_message(chat_id, f"❌ **Hubo un problema al obtener la información.**\nPor favor intenta en unos minutos.", parse_mode='Markdown')
+
+def handle_unknown_command(chat_id, text):
+    """Manejar comandos no reconocidos"""
+    text_lower = text.lower()
+    
+    # Sugerencias inteligentes
+    if any(word in text_lower for word in ['cliente', 'buscar', 'encontrar', 'search']):
+        suggestion = "💡 **Sugerencia:** Escribe `cliente` para buscar un cliente"
+    elif any(word in text_lower for word in ['crear', 'nuevo', 'registrar', 'comercial']):
+        suggestion = "💡 **Sugerencia:** Escribe `crear` para registrar un comercial"
+    elif any(word in text_lower for word in ['orden', 'asignar', 'assignment', 'order']):
+        suggestion = "💡 **Sugerencia:** Escribe `orden` para asignar una orden"
+    elif any(word in text_lower for word in ['nit', 'cedula', 'documento']):
+        suggestion = "💡 **Sugerencia:** Escribe `cliente` primero, luego elige el tipo de documento"
+    elif any(word in text_lower for word in ['estadistica', 'resumen', 'info']):
+        suggestion = "💡 **Sugerencia:** Escribe `resumen` para ver información del sistema"
+    else:
+        suggestion = "💡 **Sugerencia:** Escribe `help` para ver qué puedo hacer"
+    
+    response = f"""❓ **No entendí:** `{text}`
+
+{suggestion}
+
+**📋 Lo que puedo hacer:**
+• `cliente` - Buscar un cliente
+• `crear` - Registrar comercial nuevo
+• `orden` - Asignar orden a comercial
+• `resumen` - Ver información general  
+• `help` - Ver todos los comandos
+
+**🔍 ¿Quieres buscar un cliente?** Escribe: `cliente`
+**👤 ¿Quieres crear un comercial?** Escribe: `crear`
+**📦 ¿Quieres asignar una orden?** Escribe: `orden`"""
+    
+    send_telegram_message(chat_id, response, parse_mode='Markdown')
+
+def handle_help_command(chat_id):
+    """Comando /help - Ayuda"""
+    text = """📋 COMANDOS DISPONIBLES
+
+**🔍 Buscar Clientes:**
+• cliente - Empezar búsqueda con verificación comercial
+• NIT - Para empresas
+• CC - Para personas
+
+**👤 Gestión de Comerciales:**
+• crear - Registrar nuevo comercial externo
+• Proceso guiado paso a paso
+• Validación automática de datos
+
+**📊 Información:**
+• resumen - Ver datos del sistema
+• info - Detalles sobre qué información se muestra
+• help - Mostrar esta ayuda
+• start - Volver al inicio
+
+**🔍 Proceso de búsqueda:**
+1. Empezar: Escribe 'cliente'
+2. Tipo: Selecciona 'NIT' o 'CC'
+3. Número: Escribe el documento (solo números)
+4. Resultado: Te muestro el estado comercial e información
+
+**👤 Proceso de registro:**
+1. Empezar: Escribe 'crear'
+2. Cédula: Ingresa cédula del comercial
+3. Email: Proporciona email válido
+4. Nombre: Ingresa nombre completo
+5. Teléfono: Proporciona número de contacto
+6. Confirmación: Te confirmo el registro
+
+**🚦 Estados de cliente:**
+• 🟢 DISPONIBLE - Cliente puede crear órdenes
+• 🚫 NO DISPONIBLE - Cliente existe pero no puede crear órdenes
+• ❌ NO ENCONTRADO - Necesita pre-registro
+
+**📋 Datos del comercial requeridos:**
+• Cédula: 6-12 dígitos únicos
+• Email: Formato válido (@dominio.com/co/etc)
+• Nombre: 2-100 caracteres
+• Teléfono: 7-20 dígitos
+
+**✅ Validaciones automáticas:**
+• Verificación de comercial existente
+• Formato de email válido
+• Longitud de campos apropiada
+• Caracteres permitidos en nombres
+
+**📞 Para clientes nuevos:**
+Si no encuentras un cliente, te daré el enlace de pre-registro para crearlo.
+
+**⚡ Características comerciales:**
+• Verificación de disponibilidad para órdenes
+• Información completa del cliente
+• Enlaces de pre-registro automáticos
+• Estados comerciales claros
+• Registro de comerciales seguros
+• Disponible 24/7"""
+    
+    send_telegram_message(chat_id, text, parse_mode='Markdown')
+
+def handle_create_comercial_start(chat_id, user_id):
+    """Iniciar proceso de creación de comercial"""
+    logger.info(f"Create comercial start from chat {chat_id}")
+    
+    # Establecer estado de usuario
+    user_states[user_id] = {
+        'step': 'cedula',
+        'process': 'create_comercial',
+        'chat_id': chat_id,
+        'data': {}
+    }
+    
+    text = """👤 **REGISTRAR NUEVO COMERCIAL** ⚡
+
+**¡Vamos a registrar un nuevo comercial externo!**
+
+**Paso 1/4:** Ingresa la cédula del comercial
+
+**🔍 Formato requerido:**
+• Solo números (sin puntos, guiones ni espacios)
+• Entre 6 y 12 dígitos
+• Ejemplo: 12345678
+
+**💡 Instrucciones:**
+• El sistema verificará que no esté registrado
+• Si ya existe, te mostraré la información
+• Si está disponible, continuaremos con el registro
+
+📝 **Ingresa la cédula:**"""
+    
+    send_telegram_message(chat_id, text, parse_mode='Markdown')
+
+def handle_info_command(chat_id):
+    """Comando /info - Información detallada"""
+    text = """ℹ️ **INFORMACIÓN DETALLADA**
+
+**🔍 Para obtener información completa de un cliente:**
+1. Usa 'cliente' para buscar
+2. El sistema mostrará automáticamente:
+
+**Datos principales:**
+• 🔍 Documento de identidad
+• 🏢 Nombre/Razón social  
+• 👤 Representante legal
+• 📞 Teléfono de contacto
+• 📧 Email corporativo
+• 📍 Dirección completa
+• 🌆 Ciudad y departamento
+
+**👤 Para registrar comerciales nuevos:**
+1. Usa 'crear' para empezar
+2. El sistema solicitará:
+
+**Datos requeridos:**
+• 🆔 Cédula (única en el sistema)
+• 📧 Email (formato válido)
+• 👤 Nombre completo
+• 📞 Teléfono de contacto
+
+**📦 Para asignar órdenes:**
+1. Usa 'orden' para empezar
+2. El sistema verificará:
+
+**Proceso de asignación:**
+• 🔍 Comercial existe (por cédula)
+• 📦 Orden existe (formato MP-XXXXX)
+• 🎯 Asignación automática
+
+**💡 Tip:** Toda la información disponible se muestra automáticamente en cada búsqueda, registro y asignación.
+
+🔍 **Para buscar:** Escribe 'cliente'
+👤 **Para registrar:** Escribe 'crear'  
+📦 **Para asignar:** Escribe 'orden'"""
+    
+    send_telegram_message(chat_id, text, parse_mode='Markdown')
+
+def handle_client_search_start(chat_id, user_id):
+    """Iniciar proceso de búsqueda de cliente"""
+    logger.info(f"Client search start from chat {chat_id}")
+    
+    # Establecer estado de usuario
+    user_states[user_id] = {
+        'step': 'document_type',
+        'process': 'client_search',
+        'chat_id': chat_id
+    }
+    
+    text = """🔍 **BÚSQUEDA DE CLIENTE** ⚡
+
+**Paso 1/2:** Selecciona el tipo de documento
+
+**Opciones disponibles:**
+• **NIT** - Número de Identificación Tributaria
+• **CC** - Cédula de Ciudadanía
+
+📝 **Instrucciones:**
+• Escribe exactamente: `NIT` o `CC`
+• No uses símbolos adicionales
+
+💡 **Ejemplo:**
+Si quieres buscar por NIT, escribe: `NIT`
+Si quieres buscar por cédula, escribe: `CC`"""
+    
+    send_telegram_message(chat_id, text, parse_mode='Markdown')
