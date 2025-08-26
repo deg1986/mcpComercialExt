@@ -8,7 +8,8 @@ import logging
 # Imports modulares
 from config import *
 from redash_service import get_clients_from_redash, search_client_by_document_with_availability, get_clients_summary
-from nocodb_service import check_comercial_exists, create_comercial, get_comercial_info
+from nocodb_service import (check_comercial_exists, create_comercial, get_comercial_info, 
+                           check_order_exists, process_order_assignment, get_comercial_by_cedula)
 from bot_handlers import setup_telegram_routes
 from utils import setup_webhook, validate_telegram_token
 
@@ -319,6 +320,131 @@ def api_comercial_info():
             
     except Exception as e:
         logger.error(f"❌ API comercial info error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# ===== API ENDPOINTS ÓRDENES =====
+
+@app.route('/api/orders/check', methods=['GET'])
+def api_check_order():
+    """API para verificar existencia de orden"""
+    order_number = request.args.get('order_number', '').strip()
+    
+    if not order_number:
+        return jsonify({
+            "error": "Parámetro requerido: order_number",
+            "example": "/api/orders/check?order_number=MP-0003"
+        }), 400
+    
+    try:
+        result = check_order_exists(order_number)
+        
+        if result.get("success"):
+            return jsonify(result)
+        else:
+            return jsonify(result), 500
+            
+    except Exception as e:
+        logger.error(f"❌ API check order error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/orders/assign', methods=['POST'])
+def api_assign_order():
+    """API para asignar orden a comercial"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"error": "JSON data requerido"}), 400
+        
+        required_fields = ['cedula', 'order_number']
+        missing_fields = [field for field in required_fields if not data.get(field)]
+        
+        if missing_fields:
+            return jsonify({
+                "error": f"Campos requeridos faltantes: {', '.join(missing_fields)}",
+                "required_fields": required_fields,
+                "example": {
+                    "cedula": "12345678",
+                    "order_number": "MP-0003"
+                }
+            }), 400
+        
+        result = process_order_assignment(
+            cedula=data['cedula'],
+            order_number=data['order_number']
+        )
+        
+        if result.get("success"):
+            return jsonify(result), 201
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        logger.error(f"❌ API assign order error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/orders/process', methods=['POST'])
+def api_process_order():
+    """API para procesar asignación completa (comercial + orden)"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"error": "JSON data requerido"}), 400
+        
+        required_fields = ['cedula', 'order_number']
+        missing_fields = [field for field in required_fields if not data.get(field)]
+        
+        if missing_fields:
+            return jsonify({
+                "error": f"Campos requeridos faltantes: {', '.join(missing_fields)}",
+                "required_fields": required_fields,
+                "process": {
+                    "step_1": "Verificar comercial existe",
+                    "step_2": "Verificar orden existe",
+                    "step_3": "Asignar orden al comercial"
+                },
+                "example": {
+                    "cedula": "12345678",
+                    "order_number": "MP-0003"
+                }
+            }), 400
+        
+        result = process_order_assignment(
+            cedula=data['cedula'],
+            order_number=data['order_number']
+        )
+        
+        if result.get("success"):
+            return jsonify(result), 201
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        logger.error(f"❌ API process order error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/comerciales/get', methods=['GET'])
+def api_get_comercial():
+    """API para obtener comercial por cédula con ID"""
+    cedula = request.args.get('cedula', '').strip()
+    
+    if not cedula:
+        return jsonify({
+            "error": "Parámetro requerido: cedula",
+            "example": "/api/comerciales/get?cedula=12345678"
+        }), 400
+    
+    try:
+        result = get_comercial_by_cedula(cedula)
+        
+        if result.get("success"):
+            return jsonify(result)
+        else:
+            return jsonify(result), 500
+            
+    except Exception as e:
+        logger.error(f"❌ API get comercial error: {e}")
         return jsonify({"error": str(e)}), 500
 
 # ===== ENDPOINT WEBHOOK =====
