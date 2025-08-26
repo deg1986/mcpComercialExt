@@ -1,9 +1,181 @@
-# bot_handlers.py - Manejadores del Bot Telegram v1.3 - CLEAN VERSION + CREAR COMERCIAL
+def handle_start_command(chat_id):
+    """Comando /start - Bienvenida"""
+    logger.info(f"Start command from chat {chat_id}")
+    
+    text = """🎯 **BUSCADOR DE CLIENTES COMERCIALES** ⚡
+
+🔹 Te ayudo a buscar clientes y verificar su **disponibilidad comercial** para crear órdenes.
+🔹 También puedo **registrar nuevos comerciales** en el sistema.
+🔹 Y puedo **asignar órdenes** a comerciales externos.
+
+**📋 ¿Qué puedo hacer?**
+• cliente - Buscar cliente y verificar disponibilidad
+• crear - Registrar nuevo comercial externo
+• orden - Asignar orden a comercial externo
+• resumen - Ver información del sistema
+• info - Ver qué datos obtienes
+• help - Ver todos los comandos
+
+**🔍 Puedo buscar por:**
+• NIT - Número de Identificación Tributaria  
+• CC - Cédula de Ciudadanía
+
+**🚦 Estados de cliente:**
+• 🟢 **DISPONIBLE** - Puede crear órdenes
+• 🚫 **NO DISPONIBLE** - Existe pero no puede crear órdenes
+• ❌ **NO ENCONTRADO** - Necesita pre-registro
+
+**👤 Para comerciales nuevos:**
+• crear - Registrar comercial con cédula, email, nombre y teléfono
+• Validación automática de duplicados
+• Formatos de email y teléfono validados
+
+**📦 Para asignación de órdenes:**
+• orden - Asignar orden a comercial existente
+• Verificación de comercial y orden
+• Formato automático MP-XXXXX
+
+**📊 Información que obtienes:**
+• 🏢 Nombre/Razón social
+• 👤 Representante legal
+• 📞 Teléfono de contacto
+• 📧 Email corporativo
+• 📍 Dirección completa
+• 🌆 Ciudad y departamento
+
+**💡 ¿Cómo funciona?**
+1. Escribe: cliente (buscar) | crear (registrar) | orden (asignar)
+2. Sigue las instrucciones paso a paso
+3. ¡Te muestro el resultado!
+
+🚀 **¡Empecemos a trabajar!**"""
+    
+    send_telegram_message(chat_id, text, parse_mode='Markdown')
+
+def handle_help_command(chat_id):
+    """Comando /help - Ayuda"""
+    text = """📋 COMANDOS DISPONIBLES
+
+**🔍 Buscar Clientes:**
+• cliente - Empezar búsqueda con verificación comercial
+• NIT - Para empresas
+• CC - Para personas
+
+**👤 Gestión de Comerciales:**
+• crear - Registrar nuevo comercial externo
+• Proceso guiado paso a paso
+• Validación automática de datos
+
+**📦 Asignación de Órdenes:**
+• orden - Asignar orden a comercial externo
+• Verificación de comercial existente
+• Verificación de orden válida
+• Formato automático MP-XXXXX
+
+**📊 Información:**
+• resumen - Ver datos del sistema
+• info - Detalles sobre qué información se muestra
+• help - Mostrar esta ayuda
+• start - Volver al inicio
+
+**🔍 Proceso de búsqueda:**
+1. Empezar: Escribe 'cliente'
+2. Tipo: Selecciona 'NIT' o 'CC'
+3. Número: Escribe el documento (solo números)
+4. Resultado: Te muestro el estado comercial e información
+
+**👤 Proceso de registro:**
+1. Empezar: Escribe 'crear'
+2. Cédula: Ingresa cédula del comercial
+3. Email: Proporciona email válido
+4. Nombre: Ingresa nombre completo
+5. Teléfono: Proporciona número de contacto
+6. Confirmación: Te confirmo el registro
+
+**📦 Proceso de asignación de órdenes:**
+1. Empezar: Escribe 'orden'
+2. Cédula: Ingresa cédula del comercial
+3. Orden: Proporciona número de orden
+4. Confirmación: Te confirmo la asignación
+
+**🚦 Estados de cliente:**
+• 🟢 DISPONIBLE - Cliente puede crear órdenes
+• 🚫 NO DISPONIBLE - Cliente existe pero no puede crear órdenes
+• ❌ NO ENCONTRADO - Necesita pre-registro
+
+**📋 Datos del comercial requeridos:**
+• Cédula: 6-12 dígitos únicos
+• Email: Formato válido (@dominio.com/co/etc)
+• Nombre: 2-100 caracteres
+• Teléfono: 7-20 dígitos
+
+**📦 Formatos de orden aceptados:**
+• mp-0003 → MP-0003
+• MP-0003 → MP-0003
+• Mp-003 → MP-003
+• 0003 → MP-0003
+
+**✅ Validaciones automáticas:**
+• Verificación de comercial existente
+• Verificación de orden válida
+• Formato de email válido
+• Normalización de números de orden
+• Longitud de campos apropiada
+
+**📞 Para clientes nuevos:**
+Si no encuentras un cliente, te daré el enlace de pre-registro para crearlo.
+
+**⚡ Características comerciales:**
+• Verificación de disponibilidad para órdenes
+• Información completa del cliente
+• Enlaces de pre-registro automáticos
+• Estados comerciales claros
+• Registro de comerciales seguros
+• Asignación de órdenes automatizada
+• Disponible 24/7"""
+    
+    send_telegram_message(chat_id, text, parse_mode='Markdown')
+
+def handle_order_assignment_start(chat_id, user_id):
+    """Iniciar proceso de asignación de orden"""
+    logger.info(f"Order assignment start from chat {chat_id}")
+    
+    # Establecer estado de usuario
+    user_states[user_id] = {
+        'step': 'comercial_cedula',
+        'process': 'order_assignment',
+        'chat_id': chat_id,
+        'data': {}
+    }
+    
+    text = """📦 **ASIGNAR ORDEN A COMERCIAL** ⚡
+
+**¡Vamos a asignar una orden a un comercial externo!**
+
+**Paso 1/3:** Ingresa la cédula del comercial
+
+**🔍 Formato requerido:**
+• Solo números (sin puntos, guiones ni espacios)
+• Entre 6 y 12 dígitos
+• Debe ser un comercial ya registrado
+• Ejemplo: 12345678
+
+**💡 Instrucciones:**
+• El sistema verificará que el comercial exista
+• Si no existe, deberás registrarlo primero con 'crear'
+• Si existe, continuaremos con la orden
+
+📝 **Ingresa la cédula del comercial:**"""
+    
+    send_telegram_message(chat_id, text, parse_mode='Markdown')# bot_handlers.py - Manejadores del Bot Telegram v1.3 - CLEAN VERSION + CREAR COMERCIAL
 import logging
 from flask import request
 from config import *
 from redash_service import search_client_by_document_with_availability, get_clients_summary, validate_document_number, format_client_info
-from nocodb_service import check_comercial_exists, create_comercial, validate_email_format, validate_cedula_format, validate_name_format, validate_phone_format, format_comercial_info
+from nocodb_service import (check_comercial_exists, create_comercial, validate_email_format, 
+                          validate_cedula_format, validate_name_format, validate_phone_format, 
+                          format_comercial_info, validate_order_number_format, get_comercial_by_cedula,
+                          check_order_exists, process_order_assignment)
 from utils import send_telegram_message
 
 logger = logging.getLogger(__name__)
@@ -42,6 +214,8 @@ def setup_telegram_routes(app):
                 handle_client_search_start(chat_id, user_id)
             elif text_lower in ['/crear', 'crear', 'nuevo', 'registrar']:
                 handle_create_comercial_start(chat_id, user_id)
+            elif text_lower in ['/orden', 'orden', 'asignar', 'assignment']:
+                handle_order_assignment_start(chat_id, user_id)
             elif text_lower in ['/resumen', 'resumen', 'estadisticas', 'stats']:
                 handle_stats_command(chat_id)
             elif text_lower in ['/info', 'info', 'detalle', 'detalles']:
@@ -169,6 +343,13 @@ def handle_conversation_state(chat_id, user_id, text):
                 handle_phone_input(chat_id, user_id, text)
             elif step == 'confirm':
                 handle_create_confirmation(chat_id, user_id, text)
+        elif process == 'order_assignment':
+            if step == 'comercial_cedula':
+                handle_comercial_cedula_input(chat_id, user_id, text)
+            elif step == 'order_number':
+                handle_order_number_input(chat_id, user_id, text)
+            elif step == 'assignment_confirm':
+                handle_assignment_confirmation(chat_id, user_id, text)
         else:
             # Estado no reconocido, reiniciar
             del user_states[user_id]
@@ -388,7 +569,217 @@ def handle_phone_input(chat_id, user_id, phone):
         logger.error(f"Phone input error: {e}")
         send_telegram_message(chat_id, f"❌ **Error procesando teléfono:**\nNo pude validar el teléfono en este momento.\n\n📝 **Intenta nuevamente:**")
 
-def handle_create_confirmation(chat_id, user_id, confirmation):
+def handle_comercial_cedula_input(chat_id, user_id, cedula):
+    """Manejar entrada de cédula para asignación de orden"""
+    logger.info(f"Comercial cedula input: {cedula} from chat {chat_id}")
+    
+    state = user_states[user_id]
+    
+    # Enviar mensaje de verificación
+    send_telegram_message(chat_id, f"🔍 Verificando comercial con cédula: {cedula}...\n⏳ Un momento por favor")
+    
+    try:
+        # Verificar si el comercial existe y obtener ID
+        result = get_comercial_by_cedula(cedula)
+        
+        if not result.get("success"):
+            send_telegram_message(chat_id, f"❌ **Error verificando comercial:**\n{result.get('error')}\n\n📝 **Intenta nuevamente:**")
+            return
+        
+        if not result.get("found"):
+            # Comercial no existe
+            response = f"""❌ **COMERCIAL NO ENCONTRADO**
+
+La cédula **{cedula}** no está registrada en el sistema.
+
+**¿Qué hacer?**
+• Verifica que la cédula sea correcta
+• Registra primero el comercial con el comando `crear`
+• Una vez registrado, podrás asignar órdenes
+
+**🔄 Opciones:**
+• Escribe `crear` para registrar el comercial
+• Escribe `orden` para intentar con otra cédula
+
+📝 **¿Quieres intentar con otra cédula?** Ingresa la cédula:"""
+            
+            send_telegram_message(chat_id, response, parse_mode='Markdown')
+            return
+        
+        # Comercial encontrado, guardar datos y continuar
+        comercial_id = result.get("comercial_id")
+        comercial_data = result.get("comercial_data")
+        
+        state['data']['comercial_cedula'] = cedula
+        state['data']['comercial_id'] = comercial_id
+        state['data']['comercial_data'] = comercial_data
+        state['step'] = 'order_number'
+        
+        formatted_info = format_comercial_info(comercial_data)
+        
+        text = f"""✅ **COMERCIAL ENCONTRADO** 
+
+{formatted_info}
+
+**Paso 2/3:** Ingresa el número de orden
+
+**📦 Formato de orden:**
+• Ejemplos aceptados:
+  - MP-0003
+  - mp-0003  
+  - Mp-003
+  - 0003 (se convertirá a MP-0003)
+
+**💡 Instrucciones:**
+• El sistema normalizará el formato automáticamente
+• Verificará que la orden exista en el sistema
+• Formato final será: MP-XXXXX
+
+📝 **Ingresa el número de orden:**"""
+        
+        send_telegram_message(chat_id, text, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"Comercial cedula input error: {e}")
+        send_telegram_message(chat_id, f"❌ **Error procesando cédula:**\nNo pude verificar el comercial en este momento.\n\n📝 **Intenta nuevamente:**")
+
+def handle_order_number_input(chat_id, user_id, order_number):
+    """Manejar entrada de número de orden"""
+    logger.info(f"Order number input: {order_number} from chat {chat_id}")
+    
+    state = user_states[user_id]
+    
+    # Enviar mensaje de verificación
+    send_telegram_message(chat_id, f"📦 Verificando orden: {order_number}...\n⏳ Un momento por favor")
+    
+    try:
+        # Verificar que la orden existe
+        result = check_order_exists(order_number)
+        
+        if not result.get("success"):
+            send_telegram_message(chat_id, f"❌ **Error verificando orden:**\n{result.get('error')}\n\n📝 **Intenta nuevamente:**")
+            return
+        
+        if not result.get("exists"):
+            normalized_order = result.get("normalized_order", order_number)
+            
+            response = f"""❌ **ORDEN NO ENCONTRADA**
+
+La orden **{normalized_order}** no existe en el sistema.
+
+**¿Qué verificar?**
+• El número de orden sea correcto
+• La orden esté creada en el sistema
+• No haya errores de escritura
+
+**💡 Formato normalizado:** {normalized_order}
+
+📝 **¿Quieres intentar con otro número?** Ingresa la orden:"""
+            
+            send_telegram_message(chat_id, response, parse_mode='Markdown')
+            return
+        
+        # Orden encontrada, preparar confirmación
+        normalized_order = result.get("normalized_order")
+        order_data = result.get("order_data")
+        
+        state['data']['order_number'] = normalized_order
+        state['data']['order_data'] = order_data
+        state['step'] = 'assignment_confirm'
+        
+        comercial_data = state['data']['comercial_data']
+        
+        text = f"""📋 **RESUMEN DE ASIGNACIÓN**
+
+**Comercial:**
+👤 **Nombre:** {comercial_data.get('name', 'Sin nombre')}
+🆔 **Cédula:** {comercial_data.get('cedula')}
+📧 **Email:** {comercial_data.get('email', 'No disponible')}
+
+**Orden:**
+📦 **Número:** {normalized_order}
+✅ **Estado:** Orden válida en el sistema
+
+**¿Confirmas la asignación?**
+
+**✅ Para CONFIRMAR:** Escribe `SI` o `CONFIRMAR`
+**❌ Para CANCELAR:** Escribe `NO` o `CANCELAR`
+
+💡 **Nota:** Una vez confirmado, la orden será asignada al comercial."""
+        
+        send_telegram_message(chat_id, text, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"Order number input error: {e}")
+        send_telegram_message(chat_id, f"❌ **Error procesando orden:**\nNo pude verificar la orden en este momento.\n\n📝 **Intenta nuevamente:**")
+
+def handle_assignment_confirmation(chat_id, user_id, confirmation):
+    """Manejar confirmación de asignación de orden"""
+    logger.info(f"Assignment confirmation: {confirmation} from chat {chat_id}")
+    
+    state = user_states[user_id]
+    confirmation_lower = confirmation.lower().strip()
+    
+    if confirmation_lower in ['si', 'sí', 'yes', 'confirmar', 'confirmo', 'ok', 'vale']:
+        # Confirmar asignación
+        send_telegram_message(chat_id, "🎯 **Asignando orden...**\n⏳ *Un momento por favor*")
+        
+        try:
+            data = state['data']
+            
+            # Procesar asignación completa
+            result = process_order_assignment(
+                cedula=data['comercial_cedula'],
+                order_number=data['order_number']
+            )
+            
+            if result["success"]:
+                # Éxito
+                details = result["details"]
+                
+                response = f"""✅ **¡ORDEN ASIGNADA EXITOSAMENTE!** 🎉
+
+**Información de la asignación:**
+📦 **Orden:** {details['order_number']}
+👤 **Comercial:** {details['comercial_name']}
+🆔 **Cédula:** {details['comercial_cedula']}
+🔗 **ID Comercial:** {details['comercial_id']}
+
+**✅ Estado:** Orden asignada y activa en el sistema
+
+🔄 **¿Qué hacer ahora?**
+• El comercial ya tiene la orden asignada
+• Para asignar otra orden: escribe 'orden'
+• Para buscar clientes: escribe 'cliente'
+• Para registrar comercial: escribe 'crear'
+
+🎯 **¡Asignación completada!**"""
+                
+                send_telegram_message(chat_id, response, parse_mode='Markdown')
+                
+            else:
+                # Error en asignación
+                send_telegram_message(chat_id, f"❌ **Error asignando orden:**\n{result['error']}\n\n🔄 **Intenta nuevamente:** Escribe 'orden'")
+            
+            # Limpiar estado
+            del user_states[user_id]
+            
+        except Exception as e:
+            logger.error(f"Assignment confirmation error: {e}")
+            send_telegram_message(chat_id, f"❌ **Error procesando asignación:**\nNo pude completar la asignación en este momento.\n\n🔄 **Intenta nuevamente:** Escribe 'orden'")
+            if user_id in user_states:
+                del user_states[user_id]
+    
+    elif confirmation_lower in ['no', 'cancelar', 'cancel', 'salir', 'exit']:
+        # Cancelar asignación
+        send_telegram_message(chat_id, "❌ **Asignación cancelada**\n\n🔄 **Para intentar nuevamente:** Escribe 'orden'\n💡 **Para otras opciones:** Escribe 'help'")
+        
+        # Limpiar estado
+        del user_states[user_id]
+    
+    else:
+        # Respuesta no reconocida
+        send_telegram_message(chat_id, "❓ **Respuesta no reconocida**\n\n**✅ Para CONFIRMAR:** Escribe `SI`\n**❌ Para CANCELAR:** Escribe `NO`", parse_mode='Markdown')
     """Manejar confirmación de creación de comercial"""
     logger.info(f"Create confirmation: {confirmation} from chat {chat_id}")
     
@@ -632,15 +1023,23 @@ def handle_stats_command(chat_id):
 • Validación automática de duplicados
 • Datos completos de contacto
 
+**📦 ¿Qué puedo asignar?**
+• Órdenes a comerciales existentes
+• Verificación automática de comercial
+• Verificación automática de orden
+• Formato MP-XXXXX normalizado
+
 **⚡ Características:**
 ✅ Búsqueda rápida e inteligente
 ✅ Más de {stats['total_clients']:,} clientes disponibles
 ✅ Registro seguro de comerciales
+✅ Asignación automatizada de órdenes
 ✅ Información siempre actualizada
 ✅ Disponible las 24 horas
 
 💡 **Para buscar un cliente:** Escribe `cliente`
-👤 **Para registrar comercial:** Escribe `crear`"""
+👤 **Para registrar comercial:** Escribe `crear`
+📦 **Para asignar orden:** Escribe `orden`"""
         
         send_telegram_message(chat_id, response, parse_mode='Markdown')
         
@@ -657,6 +1056,8 @@ def handle_unknown_command(chat_id, text):
         suggestion = "💡 **Sugerencia:** Escribe `cliente` para buscar un cliente"
     elif any(word in text_lower for word in ['crear', 'nuevo', 'registrar', 'comercial']):
         suggestion = "💡 **Sugerencia:** Escribe `crear` para registrar un comercial"
+    elif any(word in text_lower for word in ['orden', 'asignar', 'assignment', 'order']):
+        suggestion = "💡 **Sugerencia:** Escribe `orden` para asignar una orden"
     elif any(word in text_lower for word in ['nit', 'cedula', 'documento']):
         suggestion = "💡 **Sugerencia:** Escribe `cliente` primero, luego elige el tipo de documento"
     elif any(word in text_lower for word in ['estadistica', 'resumen', 'info']):
@@ -671,11 +1072,13 @@ def handle_unknown_command(chat_id, text):
 **📋 Lo que puedo hacer:**
 • `cliente` - Buscar un cliente
 • `crear` - Registrar comercial nuevo
+• `orden` - Asignar orden a comercial
 • `resumen` - Ver información general  
 • `help` - Ver todos los comandos
 
 **🔍 ¿Quieres buscar un cliente?** Escribe: `cliente`
-**👤 ¿Quieres crear un comercial?** Escribe: `crear`"""
+**👤 ¿Quieres crear un comercial?** Escribe: `crear`
+**📦 ¿Quieres asignar una orden?** Escribe: `orden`"""
     
     send_telegram_message(chat_id, response, parse_mode='Markdown')
 
@@ -802,10 +1205,20 @@ def handle_info_command(chat_id):
 • 👤 Nombre completo
 • 📞 Teléfono de contacto
 
-**💡 Tip:** Toda la información disponible se muestra automáticamente en cada búsqueda y registro.
+**📦 Para asignar órdenes:**
+1. Usa 'orden' para empezar
+2. El sistema verificará:
+
+**Proceso de asignación:**
+• 🔍 Comercial existe (por cédula)
+• 📦 Orden existe (formato MP-XXXXX)
+• 🎯 Asignación automática
+
+**💡 Tip:** Toda la información disponible se muestra automáticamente en cada búsqueda, registro y asignación.
 
 🔍 **Para buscar:** Escribe 'cliente'
-👤 **Para registrar:** Escribe 'crear'"""
+👤 **Para registrar:** Escribe 'crear'  
+📦 **Para asignar:** Escribe 'orden'"""
     
     send_telegram_message(chat_id, text, parse_mode='Markdown')
 

@@ -21,7 +21,11 @@ REDASH_UNAVAILABLE_QUERY_ID = os.getenv('REDASH_UNAVAILABLE_QUERY_ID')
 # ===== CONFIGURACIÓN NOCODB API (NUEVA) =====
 NOCODB_BASE_URL = os.getenv('NOCODB_BASE_URL')
 NOCODB_TOKEN = os.getenv('NOCODB_TOKEN')
-NOCODB_TABLE_ID = os.getenv('NOCODB_TABLE_ID')
+NOCODB_TABLE_ID = os.getenv('NOCODB_TABLE_ID')  # Tabla de comerciales
+
+# ===== CONFIGURACIÓN NOCODB ÓRDENES (NUEVA) =====
+NOCODB_ORDERS_TABLE_ID = os.getenv('NOCODB_ORDERS_TABLE_ID', 'mf0d57ub8rdzs05')  # Tabla de órdenes
+NOCODB_ASSIGNMENTS_TABLE_ID = os.getenv('NOCODB_ASSIGNMENTS_TABLE_ID', 'mouf2kg34a7kwv4')  # Tabla de asignaciones
 
 # ===== URL DE PRE-REGISTRO =====
 PREREGISTER_URL = os.getenv('PREREGISTER_URL')
@@ -103,3 +107,8 @@ MIN_NAME_LENGTH = int(os.getenv('MIN_NAME_LENGTH', '2'))
 MAX_NAME_LENGTH = int(os.getenv('MAX_NAME_LENGTH', '100'))
 MIN_PHONE_LENGTH = int(os.getenv('MIN_PHONE_LENGTH', '7'))
 MAX_PHONE_LENGTH = int(os.getenv('MAX_PHONE_LENGTH', '20'))
+
+# ===== CONFIGURACIÓN VALIDACIONES ÓRDENES =====
+ORDER_NUMBER_PREFIX = "MP-"  # Prefijo obligatorio para números de orden
+MIN_ORDER_LENGTH = 3         # Mínimo caracteres después del prefijo
+MAX_ORDER_LENGTH = 10        # Máximo caracteres después del prefijo
