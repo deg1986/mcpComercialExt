@@ -7,7 +7,7 @@ import logging
 
 # Imports modulares
 from config import *
-from redash_service import get_clients_from_redash, search_client_by_document, get_clients_summary
+from redash_service import get_clients_from_redash, search_client_by_document_with_availability, get_clients_summary
 from bot_handlers import setup_telegram_routes
 from utils import setup_webhook, validate_telegram_token
 
@@ -175,7 +175,7 @@ def api_search_client():
         }), 400
     
     try:
-        result = search_client_by_document(doc_type, doc_number)
+        result = search_client_by_document_with_availability(doc_type, doc_number)
         
         if result.get("success"):
             return jsonify(result)
