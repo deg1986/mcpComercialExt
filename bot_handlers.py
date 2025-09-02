@@ -1,3 +1,115 @@
+# bot_handlers.py - Manejadores del Bot Telegram v1.4 - CLEAN VERSION + CREAR COMERCIAL + ÓRDENES
+import logging
+from flask import request
+from config import *
+from redash_service import search_client_by_document_with_availability, get_clients_summary, validate_document_number, format_client_info
+from nocodb_service import (check_comercial_exists, create_comercial, validate_email_format, 
+                          validate_cedula_format, validate_name_format, validate_phone_format, 
+                          format_comercial_info, validate_order_number_format, get_comercial_by_cedula,
+                          check_order_exists, process_order_assignment)
+from utils import send_telegram_message
+
+logger = logging.getLogger(__name__)
+
+# Variables globales para estados de usuario
+user_states = {}
+
+def setup_telegram_routes(app):
+    """Configurar rutas del bot de Telegram"""
+    
+    @app.route('/telegram-webhook', methods=['POST'])
+    def telegram_webhook():
+        """Webhook para recibir mensajes de Telegram"""
+        try:
+            update_data = request.get_json()
+            
+            if not update_data or 'message' not in update_data:
+                return "OK", 200
+            
+            message = update_data['message']
+            chat_id = message['chat']['id']
+            user_id = message['from']['id']
+            
+            if 'text' not in message:
+                return "OK", 200
+            
+            text = message['text'].strip()
+            text_lower = text.lower()
+            
+            # Router de comandos
+            if text in ['/start', 'start', 'inicio', 'hola']:
+                handle_start_command(chat_id)
+            elif text in ['/help', 'help', 'ayuda']:
+                handle_help_command(chat_id)
+            elif text_lower in ['/cliente', 'cliente', 'buscar', 'search']:
+                handle_client_search_start(chat_id, user_id)
+            elif text_lower in ['/crear', 'crear', 'nuevo', 'registrar']:
+                handle_create_comercial_start(chat_id, user_id)
+            elif text_lower in ['/orden', 'orden', 'asignar', 'assignment']:
+                handle_order_assignment_start(chat_id, user_id)
+            elif text_lower in ['/resumen', 'resumen', 'estadisticas', 'stats']:
+                handle_stats_command(chat_id)
+            elif text_lower in ['/info', 'info', 'detalle', 'detalles']:
+                handle_info_command(chat_id)
+            elif text_lower in ['nit', 'cc'] and user_id in user_states and user_states[user_id].get('process') == 'client_search':
+                handle_document_type_selection(chat_id, user_id, text.upper())
+            else:
+                # Manejar estados de conversación
+                if user_id in user_states:
+                    handle_conversation_state(chat_id, user_id, text)
+                else:
+                    handle_unknown_command(chat_id, text)
+            
+            return "OK", 200
+            
+        except Exception as e:
+            logger.error(f"Webhook error: {e}")
+            return "Handled with error", 200
+
+def handle_info_command(chat_id):
+    """Comando /info - Información detallada"""
+    text = """ℹ️ **INFORMACIÓN DETALLADA**
+
+**🔍 Para obtener información completa de un cliente:**
+1. Usa 'cliente' para buscar
+2. El sistema mostrará automáticamente:
+
+**Datos principales:**
+• 🔍 Documento de identidad
+• 🏢 Nombre/Razón social  
+• 👤 Representante legal
+• 📞 Teléfono de contacto
+• 📧 Email corporativo
+• 📍 Dirección completa
+• 🌆 Ciudad y departamento
+
+**👤 Para registrar comerciales nuevos:**
+1. Usa 'crear' para empezar
+2. El sistema solicitará:
+
+**Datos requeridos:**
+• 🆔 Cédula (única en el sistema)
+• 📧 Email (formato válido)
+• 👤 Nombre completo
+• 📞 Teléfono de contacto
+
+**📦 Para asignar órdenes:**
+1. Usa 'orden' para empezar
+2. El sistema verificará:
+
+**Proceso de asignación:**
+• 🔍 Comercial existe (por cédula)
+• 📦 Orden existe (formato MP-XXXXX)
+• 🎯 Asignación automática
+
+**💡 Tip:** Toda la información disponible se muestra automáticamente en cada búsqueda, registro y asignación.
+
+🔍 **Para buscar:** Escribe 'cliente'
+👤 **Para registrar:** Escribe 'crear'  
+📦 **Para asignar:** Escribe 'orden'"""
+    
+    send_telegram_message(chat_id, text, parse_mode='Markdown')
+
 def handle_start_command(chat_id):
     """Comando /start - Bienvenida"""
     logger.info(f"Start command from chat {chat_id}")
@@ -136,6 +248,38 @@ Si no encuentras un cliente, te daré el enlace de pre-registro para crearlo.
     
     send_telegram_message(chat_id, text, parse_mode='Markdown')
 
+def handle_create_comercial_start(chat_id, user_id):
+    """Iniciar proceso de creación de comercial"""
+    logger.info(f"Create comercial start from chat {chat_id}")
+    
+    # Establecer estado de usuario
+    user_states[user_id] = {
+        'step': 'cedula',
+        'process': 'create_comercial',
+        'chat_id': chat_id,
+        'data': {}
+    }
+    
+    text = """👤 **REGISTRAR NUEVO COMERCIAL** ⚡
+
+**¡Vamos a registrar un nuevo comercial externo!**
+
+**Paso 1/4:** Ingresa la cédula del comercial
+
+**🔍 Formato requerido:**
+• Solo números (sin puntos, guiones ni espacios)
+• Entre 6 y 12 dígitos
+• Ejemplo: 12345678
+
+**💡 Instrucciones:**
+• El sistema verificará que no esté registrado
+• Si ya existe, te mostraré la información
+• Si está disponible, continuaremos con el registro
+
+📝 **Ingresa la cédula:**"""
+    
+    send_telegram_message(chat_id, text, parse_mode='Markdown')
+
 def handle_order_assignment_start(chat_id, user_id):
     """Iniciar proceso de asignación de orden"""
     logger.info(f"Order assignment start from chat {chat_id}")
@@ -167,118 +311,34 @@ def handle_order_assignment_start(chat_id, user_id):
 
 📝 **Ingresa la cédula del comercial:**"""
     
-    send_telegram_message(chat_id, text, parse_mode='Markdown')# bot_handlers.py - Manejadores del Bot Telegram v1.3 - CLEAN VERSION + CREAR COMERCIAL
-import logging
-from flask import request
-from config import *
-from redash_service import search_client_by_document_with_availability, get_clients_summary, validate_document_number, format_client_info
-from nocodb_service import (check_comercial_exists, create_comercial, validate_email_format, 
-                          validate_cedula_format, validate_name_format, validate_phone_format, 
-                          format_comercial_info, validate_order_number_format, get_comercial_by_cedula,
-                          check_order_exists, process_order_assignment)
-from utils import send_telegram_message
+    send_telegram_message(chat_id, text, parse_mode='Markdown')
 
-logger = logging.getLogger(__name__)
-
-# Variables globales para estados de usuario
-user_states = {}
-
-def setup_telegram_routes(app):
-    """Configurar rutas del bot de Telegram"""
+def handle_client_search_start(chat_id, user_id):
+    """Iniciar proceso de búsqueda de cliente"""
+    logger.info(f"Client search start from chat {chat_id}")
     
-    @app.route('/telegram-webhook', methods=['POST'])
-    def telegram_webhook():
-        """Webhook para recibir mensajes de Telegram"""
-        try:
-            update_data = request.get_json()
-            
-            if not update_data or 'message' not in update_data:
-                return "OK", 200
-            
-            message = update_data['message']
-            chat_id = message['chat']['id']
-            user_id = message['from']['id']
-            
-            if 'text' not in message:
-                return "OK", 200
-            
-            text = message['text'].strip()
-            text_lower = text.lower()
-            
-            # Router de comandos
-            if text in ['/start', 'start', 'inicio', 'hola']:
-                handle_start_command(chat_id)
-            elif text in ['/help', 'help', 'ayuda']:
-                handle_help_command(chat_id)
-            elif text_lower in ['/cliente', 'cliente', 'buscar', 'search']:
-                handle_client_search_start(chat_id, user_id)
-            elif text_lower in ['/crear', 'crear', 'nuevo', 'registrar']:
-                handle_create_comercial_start(chat_id, user_id)
-            elif text_lower in ['/orden', 'orden', 'asignar', 'assignment']:
-                handle_order_assignment_start(chat_id, user_id)
-            elif text_lower in ['/resumen', 'resumen', 'estadisticas', 'stats']:
-                handle_stats_command(chat_id)
-            elif text_lower in ['/info', 'info', 'detalle', 'detalles']:
-                handle_info_command(chat_id)
-            elif text_lower in ['nit', 'cc'] and user_id in user_states and user_states[user_id].get('process') == 'client_search':
-                handle_document_type_selection(chat_id, user_id, text.upper())
-            else:
-                # Manejar estados de conversación
-                if user_id in user_states:
-                    handle_conversation_state(chat_id, user_id, text)
-                else:
-                    handle_unknown_command(chat_id, text)
-            
-            return "OK", 200
-            
-        except Exception as e:
-            logger.error(f"Webhook error: {e}")
-            return "Handled with error", 200
-
-def handle_start_command(chat_id):
-    """Comando /start - Bienvenida"""
-    logger.info(f"Start command from chat {chat_id}")
+    # Establecer estado de usuario
+    user_states[user_id] = {
+        'step': 'document_type',
+        'process': 'client_search',
+        'chat_id': chat_id
+    }
     
-    text = """🎯 **BUSCADOR DE CLIENTES COMERCIALES** ⚡
+    text = """🔍 **BÚSQUEDA DE CLIENTE** ⚡
 
-🔹 Te ayudo a buscar clientes y verificar su **disponibilidad comercial** para crear órdenes.
-🔹 También puedo **registrar nuevos comerciales** en el sistema.
+**Paso 1/2:** Selecciona el tipo de documento
 
-**📋 ¿Qué puedo hacer?**
-• cliente - Buscar cliente y verificar disponibilidad
-• crear - Registrar nuevo comercial externo
-• resumen - Ver información del sistema
-• info - Ver qué datos obtienes
-• help - Ver todos los comandos
+**Opciones disponibles:**
+• **NIT** - Número de Identificación Tributaria
+• **CC** - Cédula de Ciudadanía
 
-**🔍 Puedo buscar por:**
-• NIT - Número de Identificación Tributaria  
-• CC - Cédula de Ciudadanía
+📝 **Instrucciones:**
+• Escribe exactamente: `NIT` o `CC`
+• No uses símbolos adicionales
 
-**🚦 Estados de cliente:**
-• 🟢 **DISPONIBLE** - Puede crear órdenes
-• 🚫 **NO DISPONIBLE** - Existe pero no puede crear órdenes
-• ❌ **NO ENCONTRADO** - Necesita pre-registro
-
-**👤 Para comerciales nuevos:**
-• crear - Registrar comercial con cédula, email, nombre y teléfono
-• Validación automática de duplicados
-• Formatos de email y teléfono validados
-
-**📊 Información que obtienes:**
-• 🏢 Nombre/Razón social
-• 👤 Representante legal
-• 📞 Teléfono de contacto
-• 📧 Email corporativo
-• 📍 Dirección completa
-• 🌆 Ciudad y departamento
-
-**💡 ¿Cómo funciona?**
-1. Escribe: cliente (para buscar) o crear (para registrar)
-2. Sigue las instrucciones paso a paso
-3. ¡Te muestro el resultado!
-
-🚀 **¡Empecemos a trabajar!**"""
+💡 **Ejemplo:**
+Si quieres buscar por NIT, escribe: `NIT`
+Si quieres buscar por cédula, escribe: `CC`"""
     
     send_telegram_message(chat_id, text, parse_mode='Markdown')
 
@@ -780,6 +840,8 @@ def handle_assignment_confirmation(chat_id, user_id, confirmation):
     else:
         # Respuesta no reconocida
         send_telegram_message(chat_id, "❓ **Respuesta no reconocida**\n\n**✅ Para CONFIRMAR:** Escribe `SI`\n**❌ Para CANCELAR:** Escribe `NO`", parse_mode='Markdown')
+
+def handle_create_confirmation(chat_id, user_id, confirmation):
     """Manejar confirmación de creación de comercial"""
     logger.info(f"Create confirmation: {confirmation} from chat {chat_id}")
     
@@ -1081,172 +1143,3 @@ def handle_unknown_command(chat_id, text):
 **📦 ¿Quieres asignar una orden?** Escribe: `orden`"""
     
     send_telegram_message(chat_id, response, parse_mode='Markdown')
-
-def handle_help_command(chat_id):
-    """Comando /help - Ayuda"""
-    text = """📋 COMANDOS DISPONIBLES
-
-**🔍 Buscar Clientes:**
-• cliente - Empezar búsqueda con verificación comercial
-• NIT - Para empresas
-• CC - Para personas
-
-**👤 Gestión de Comerciales:**
-• crear - Registrar nuevo comercial externo
-• Proceso guiado paso a paso
-• Validación automática de datos
-
-**📊 Información:**
-• resumen - Ver datos del sistema
-• info - Detalles sobre qué información se muestra
-• help - Mostrar esta ayuda
-• start - Volver al inicio
-
-**🔍 Proceso de búsqueda:**
-1. Empezar: Escribe 'cliente'
-2. Tipo: Selecciona 'NIT' o 'CC'
-3. Número: Escribe el documento (solo números)
-4. Resultado: Te muestro el estado comercial e información
-
-**👤 Proceso de registro:**
-1. Empezar: Escribe 'crear'
-2. Cédula: Ingresa cédula del comercial
-3. Email: Proporciona email válido
-4. Nombre: Ingresa nombre completo
-5. Teléfono: Proporciona número de contacto
-6. Confirmación: Te confirmo el registro
-
-**🚦 Estados de cliente:**
-• 🟢 DISPONIBLE - Cliente puede crear órdenes
-• 🚫 NO DISPONIBLE - Cliente existe pero no puede crear órdenes
-• ❌ NO ENCONTRADO - Necesita pre-registro
-
-**📋 Datos del comercial requeridos:**
-• Cédula: 6-12 dígitos únicos
-• Email: Formato válido (@dominio.com/co/etc)
-• Nombre: 2-100 caracteres
-• Teléfono: 7-20 dígitos
-
-**✅ Validaciones automáticas:**
-• Verificación de comercial existente
-• Formato de email válido
-• Longitud de campos apropiada
-• Caracteres permitidos en nombres
-
-**📞 Para clientes nuevos:**
-Si no encuentras un cliente, te daré el enlace de pre-registro para crearlo.
-
-**⚡ Características comerciales:**
-• Verificación de disponibilidad para órdenes
-• Información completa del cliente
-• Enlaces de pre-registro automáticos
-• Estados comerciales claros
-• Registro de comerciales seguros
-• Disponible 24/7"""
-    
-    send_telegram_message(chat_id, text, parse_mode='Markdown')
-
-def handle_create_comercial_start(chat_id, user_id):
-    """Iniciar proceso de creación de comercial"""
-    logger.info(f"Create comercial start from chat {chat_id}")
-    
-    # Establecer estado de usuario
-    user_states[user_id] = {
-        'step': 'cedula',
-        'process': 'create_comercial',
-        'chat_id': chat_id,
-        'data': {}
-    }
-    
-    text = """👤 **REGISTRAR NUEVO COMERCIAL** ⚡
-
-**¡Vamos a registrar un nuevo comercial externo!**
-
-**Paso 1/4:** Ingresa la cédula del comercial
-
-**🔍 Formato requerido:**
-• Solo números (sin puntos, guiones ni espacios)
-• Entre 6 y 12 dígitos
-• Ejemplo: 12345678
-
-**💡 Instrucciones:**
-• El sistema verificará que no esté registrado
-• Si ya existe, te mostraré la información
-• Si está disponible, continuaremos con el registro
-
-📝 **Ingresa la cédula:**"""
-    
-    send_telegram_message(chat_id, text, parse_mode='Markdown')
-
-def handle_info_command(chat_id):
-    """Comando /info - Información detallada"""
-    text = """ℹ️ **INFORMACIÓN DETALLADA**
-
-**🔍 Para obtener información completa de un cliente:**
-1. Usa 'cliente' para buscar
-2. El sistema mostrará automáticamente:
-
-**Datos principales:**
-• 🔍 Documento de identidad
-• 🏢 Nombre/Razón social  
-• 👤 Representante legal
-• 📞 Teléfono de contacto
-• 📧 Email corporativo
-• 📍 Dirección completa
-• 🌆 Ciudad y departamento
-
-**👤 Para registrar comerciales nuevos:**
-1. Usa 'crear' para empezar
-2. El sistema solicitará:
-
-**Datos requeridos:**
-• 🆔 Cédula (única en el sistema)
-• 📧 Email (formato válido)
-• 👤 Nombre completo
-• 📞 Teléfono de contacto
-
-**📦 Para asignar órdenes:**
-1. Usa 'orden' para empezar
-2. El sistema verificará:
-
-**Proceso de asignación:**
-• 🔍 Comercial existe (por cédula)
-• 📦 Orden existe (formato MP-XXXXX)
-• 🎯 Asignación automática
-
-**💡 Tip:** Toda la información disponible se muestra automáticamente en cada búsqueda, registro y asignación.
-
-🔍 **Para buscar:** Escribe 'cliente'
-👤 **Para registrar:** Escribe 'crear'  
-📦 **Para asignar:** Escribe 'orden'"""
-    
-    send_telegram_message(chat_id, text, parse_mode='Markdown')
-
-def handle_client_search_start(chat_id, user_id):
-    """Iniciar proceso de búsqueda de cliente"""
-    logger.info(f"Client search start from chat {chat_id}")
-    
-    # Establecer estado de usuario
-    user_states[user_id] = {
-        'step': 'document_type',
-        'process': 'client_search',
-        'chat_id': chat_id
-    }
-    
-    text = """🔍 **BÚSQUEDA DE CLIENTE** ⚡
-
-**Paso 1/2:** Selecciona el tipo de documento
-
-**Opciones disponibles:**
-• **NIT** - Número de Identificación Tributaria
-• **CC** - Cédula de Ciudadanía
-
-📝 **Instrucciones:**
-• Escribe exactamente: `NIT` o `CC`
-• No uses símbolos adicionales
-
-💡 **Ejemplo:**
-Si quieres buscar por NIT, escribe: `NIT`
-Si quieres buscar por cédula, escribe: `CC`"""
-    
-    send_telegram_message(chat_id, text, parse_mode='Markdown')
